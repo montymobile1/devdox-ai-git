@@ -33,7 +33,7 @@ classifiers = [
 
 # runtime dependencies
 dependencies = [
-  "devdox-ai-models @ git+https://github.com/montymobile1/devdox-ai-models.git@9ce0798",
+  "devdox-ai-models @ git+https://github.com/montymobile1/devdox-ai-models.git@b0395a4",
 
   "requests==2.32.4",
 
