@@ -1,7 +1,10 @@
 from typing import Any
 
 from devdox_ai_git.repo_fetcher import IRepoFetcher
-from devdox_ai_git.schema.repo import GitHubRepoResponseTransformer
+from devdox_ai_git.schema.repo import (
+    GitHubRepoResponseTransformer,
+    GitLabRepoResponseTransformer,
+)
 
 
 class FakeGitHubRepoFetcher(IRepoFetcher):
