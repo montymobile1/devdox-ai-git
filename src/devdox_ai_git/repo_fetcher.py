@@ -5,12 +5,12 @@ from github.Repository import Repository
 from gitlab.v4.objects import Project
 from models_src.dto.repo import GitHosting
 
-from src.devdox_ai_git.git_managers import GitHubManager, GitLabManager
-from src.devdox_ai_git.schema.repo import (
+from devdox_ai_git.git_managers import GitHubManager, GitLabManager
+from devdox_ai_git.schema.repo import (
     GitHubRepoResponseTransformer,
     GitLabRepoResponseTransformer,
 )
-from src.devdox_ai_git.utils.repository_url_parser import RepoRef, parse_git_remote
+from devdox_ai_git.utils.repository_url_parser import RepoRef, parse_git_remote
 
 
 class IRepoFetcher(Protocol):
