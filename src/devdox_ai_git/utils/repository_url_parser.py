@@ -6,6 +6,12 @@ from urllib.parse import urlparse
 
 from models_src.dto.repo import GitHosting
 
+from devdox_ai_git.exceptions.base_exceptions import DevDoxGitException
+from devdox_ai_git.exceptions.exception_constants import (
+    MISSING_NAMESPACE__REPO,
+    UNRECOGNIZED_GIT_FORMAT,
+)
+
 
 @dataclass(frozen=True)
 class RepoRef:
@@ -84,10 +90,22 @@ def parse_git_remote(remote: str) -> RepoRef:
                 full_name="/".join(parts),
             )
         else:
-            raise ValueError(f"Unrecognized git remote format: {remote}")
+            raise DevDoxGitException(
+                user_message=UNRECOGNIZED_GIT_FORMAT,
+                log_message=UNRECOGNIZED_GIT_FORMAT,
+                internal_context={
+                    "remote": remote,
+                },
+            )
 
     if len(parts) < 2:
-        raise ValueError(f"Remote is missing namespace/repo: {remote}")
+        raise DevDoxGitException(
+            user_message=MISSING_NAMESPACE__REPO,
+            log_message=MISSING_NAMESPACE__REPO,
+            internal_context={
+                "remote": remote,
+            },
+        )
 
     return RepoRef(
         original=remote,
