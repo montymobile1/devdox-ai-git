@@ -8,7 +8,7 @@ from gitlab.v4.objects import Project
 from pydantic import BaseModel, Field
 
 
-class GitRepoResponse(BaseModel):
+class NormalizedGitRepo(BaseModel):
     """Schema for Git provider repository response (unified format)"""
 
     id: str = Field(..., description="Repository ID from provider")
@@ -88,7 +88,7 @@ class GitLabRepoResponseTransformer:
     @classmethod
     def from_git(
         cls, data: Project | SimpleNamespace | dict[str, Any]
-    ) -> GitRepoResponse | None:
+    ) -> NormalizedGitRepo | None:
         if not data:
             return None
         elif isinstance(data, Project) or isinstance(data, SimpleNamespace):
@@ -100,7 +100,7 @@ class GitLabRepoResponseTransformer:
                 f"Unsupported type for `data`: {type(data)}. Expected Project, SimpleNamespace, or dict."
             )
 
-        return GitRepoResponse(
+        return NormalizedGitRepo(
             id=str(dict_data.get("id", "")),
             repo_name=dict_data.get("name"),
             description=dict_data.get("description"),
@@ -180,7 +180,7 @@ class GitHubRepoResponseTransformer:
     @classmethod
     def from_git(
         cls, data: Repository | SimpleNamespace | dict
-    ) -> GitRepoResponse | None:
+    ) -> NormalizedGitRepo | None:
 
         if not data:
             return None
@@ -193,7 +193,7 @@ class GitHubRepoResponseTransformer:
                 f"Unsupported type for `data`: {type(data)}. Expected Repository, SimpleNamespace, or dict."
             )
 
-        return GitRepoResponse(
+        return NormalizedGitRepo(
             id=str(dict_data.get("id", "")),
             repo_name=dict_data.get("name"),
             description=dict_data.get("description"),
