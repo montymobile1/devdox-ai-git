@@ -9,8 +9,8 @@ from github.Repository import Repository
 from gitlab import Gitlab, GitlabError
 from gitlab.v4.objects import Project
 
-from src.devdox_ai_git.exceptions.base_exceptions import DevDoxGitException
-from src.devdox_ai_git.exceptions.exception_constants import (
+from devdox_ai_git.exceptions.base_exceptions import DevDoxGitException
+from devdox_ai_git.exceptions.exception_constants import (
     GIT_AUTH_FAILED,
     GIT_PROJECT_FETCH_FAILED,
     GIT_PROJECT_LANGUAGE_FETCH_FAILED,
