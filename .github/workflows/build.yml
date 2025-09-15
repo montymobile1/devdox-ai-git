@@ -31,6 +31,6 @@ jobs:
 
       - name: Run tests and generate coverage
         run: |
-          coverage run -m pytest tests
+          coverage run --source=src/devdox_ai_git -m pytest tests
           coverage report  # Show coverage in logs
           coverage xml -o coverage.xml
