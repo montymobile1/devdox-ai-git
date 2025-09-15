@@ -1,6 +1,7 @@
 import pytest
 
-from src.devdox_ai_git.utils.repository_url_parser import RepoRef, parse_git_remote
+from devdox_ai_git.exceptions.base_exceptions import DevDoxGitException
+from devdox_ai_git.utils.repository_url_parser import RepoRef, parse_git_remote
 
 
 @pytest.mark.parametrize(
@@ -22,6 +23,26 @@ from src.devdox_ai_git.utils.repository_url_parser import RepoRef, parse_git_rem
             dict(
                 host="github.com",
                 provider="github",
+                namespace=["torvalds"],
+                repo="linux",
+                full_name="torvalds/linux",
+            ),
+        ),
+        (
+            "torvalds/linux",
+            dict(
+                host="",
+                provider="unknown",
+                namespace=["torvalds"],
+                repo="linux",
+                full_name="torvalds/linux",
+            ),
+        ),
+        (
+            "/torvalds/linux",
+            dict(
+                host="",
+                provider="unknown",
                 namespace=["torvalds"],
                 repo="linux",
                 full_name="torvalds/linux",
@@ -104,7 +125,7 @@ from src.devdox_ai_git.utils.repository_url_parser import RepoRef, parse_git_rem
             "https://codeberg.org/foo/bar",
             dict(
                 host="codeberg.org",
-                provider="codeberg.org",
+                provider="unknown",
                 namespace=["foo"],
                 repo="bar",
                 full_name="foo/bar",
@@ -135,7 +156,7 @@ from src.devdox_ai_git.utils.repository_url_parser import RepoRef, parse_git_rem
             "host:owner/repo",  # scp-like without explicit user
             dict(
                 host="host",
-                provider="host",
+                provider="unknown",
                 namespace=["owner"],
                 repo="repo",
                 full_name="owner/repo",
@@ -162,8 +183,27 @@ from src.devdox_ai_git.utils.repository_url_parser import RepoRef, parse_git_rem
             ),
         ),
     ],
+    ids=[
+        "https://github.com/torvalds/linux.git",
+        "https://github.com/torvalds/linux",
+        "torvalds/linux",
+        "/torvalds/linux",
+        "git@github.com:owner/repo.git",
+        "ssh://git@github.com/Owner/Repo.With.Dots.git",
+        "git://github.com/foo/bar",
+        "git+ssh://git@github.com/foo/bar.git",
+        "https://gitlab.com/group/subgroup/repo",
+        "git@gitlab.example.org:team/tooling/repo.git",
+        "ssh://git@gitlab.internal.local/group/repo/",
+        "https://codeberg.org/foo/bar",
+        "git@github.enterprise.local:Group/Sub/Repo.git",
+        "http://github.com/foo/bar",
+        "host:owner/repo",
+        "https://github.com//owner//repo.git",
+        "SSH://git@github.com/owner/repo",
+    ],
 )
-def test_parse_git_remote_success(remote, expected):
+def test_parse_git_remote_success(remote, expected) -> None:
     ref: RepoRef = parse_git_remote(remote)
     assert ref.original == remote
     assert ref.host == expected["host"]
@@ -180,11 +220,20 @@ def test_parse_git_remote_success(remote, expected):
         "git@github.com:repo-only",  # missing namespace
         "ssh://",  # empty host/path
         "notaurl",  # not URL nor scp-like
-        "https://gitlab.com/",  # no path
+        "https://gitlab.com/",  # missing path
         "",
         "   ",  # whitespace only
     ],
+    ids=[
+        "missing repo (only one path segment)",
+        "missing namespace",
+        "empty host/path",
+        "not URL nor scp-like",
+        "missing path",
+        "Blank string",
+        "whitespace string",
+    ],
 )
-def test_parse_git_remote_errors(bad_remote):
-    with pytest.raises(ValueError):
+def test_parse_git_remote_errors(bad_remote) -> None:
+    with pytest.raises(DevDoxGitException):
         parse_git_remote(bad_remote)
