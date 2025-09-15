@@ -32,4 +32,5 @@ jobs:
       - name: Run tests and generate coverage
         run: |
           coverage run -m pytest tests
-          coverage xml
+          coverage report  # Show coverage in logs
+          coverage xml -o coverage.xml
