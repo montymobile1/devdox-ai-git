@@ -29,9 +29,8 @@ jobs:
       - name: Run tests and generate coverage
         run: |
           # Run tests with coverage
-          coverage run -m pytest tests
-          coverage report  # Show coverage in logs
-          coverage xml -o coverage.xml
+          coverage run -m pytest tests/ --cov=devdox_ai_locust --cov-report=xml:coverage.xml -v
+  
 
       - name: Upload coverage reports
         uses: actions/upload-artifact@v4
