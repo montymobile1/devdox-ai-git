@@ -1,0 +1,44 @@
+# ------------------------------
+# Python build artifacts
+# ------------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Distribution / packaging
+*.egg-info/
+*.egg
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+
+# Coverage and test output
+.coverage
+htmlcov/
+.tox/
+.pytest_cache/
+
+# Logs
+*.log
+
+# uv specific
+.uv/
+uv.lock
+
+# Mypy Cache
+.mypy_cache/
+
+# Ruff Cache
+.ruff_cache/
