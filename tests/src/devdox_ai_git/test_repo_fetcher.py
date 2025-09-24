@@ -1,124 +1,270 @@
-from types import SimpleNamespace
+import types
 
 import pytest
-from models_src.dto.repo import GitHosting
 
-from devdox_ai_git.exceptions.base_exceptions import DevDoxGitException
-from devdox_ai_git.exceptions.exception_constants import UNRECOGNIZED_GIT_FORMAT
-from devdox_ai_git.repo_fetcher import GitHubRepoFetcher, GitLabRepoFetcher, RepoFetcher
-from devdox_ai_git.schema.repo import (
-    GitHubRepoResponseTransformer,
-    GitLabRepoResponseTransformer,
+# System under test
+import devdox_ai_git.repo_fetcher as rf
+
+# Your existing doubles
+from devdox_ai_git.test_doubles.git_managers_doubles import (
+    FakeAuthenticatedGitHubManager,
+    FakeAuthenticatedGitLabManager,
 )
 
-path_to_actual_module = "devdox_ai_git.repo_fetcher"
+
+# --------------------------
+# Spy doubles (to capture kwargs like page/per_page)
+# --------------------------
+class SpyAuthenticatedGitHubManager(FakeAuthenticatedGitHubManager):
+    def __init__(self):
+        super().__init__()
+        self.calls = []
+
+    def get_user_repositories(self, *args, **kwargs):
+        self.calls.append(("get_user_repositories", args, kwargs))
+        return super().get_user_repositories(*args, **kwargs)
 
 
-class TestGitHubRepoFetcher:
-    def test_fetch_user_repositories_returns_expected_dict(self, monkeypatch):
-        mock_auth = SimpleNamespace(
-            get_user_repositories=lambda page, per_page: {
-                "pagination_info": {"total_count": 2},
-                "repositories": ["repo1", "repo2"],
-            }
-        )
-        monkeypatch.setattr(
-            f"{path_to_actual_module}.GitHubManager.authenticate",
-            lambda self, token: mock_auth,
-        )
+class SpyGitHubManager:
+    """Drop-in replacement for rf.GitHubManager used inside GitHubRepoFetcher."""
+    def __init__(self, base_url):
+        self.base_url = base_url
+        self.last_auth = None
 
-        fetcher = GitHubRepoFetcher("https://fake.api")
-        result = fetcher.fetch_user_repositories("token123", 0, 2)
-        assert result == {"data_count": 2, "data": ["repo1", "repo2"]}
-
-    def test_fetch_single_repo_success(self, monkeypatch):
-        repo = SimpleNamespace(id=1)
-        mock_auth = SimpleNamespace(
-            get_project=lambda full_name: repo,
-            get_project_languages=lambda r: {"Python": 50, "Go": 50},
-        )
-        monkeypatch.setattr(
-            f"{path_to_actual_module}.GitHubManager.authenticate",
-            lambda self, token: mock_auth,
-        )
-
-        fetcher = GitHubRepoFetcher()
-        result = fetcher.fetch_single_repo("token123", "some/repo")
-        assert result[0] is repo
-        assert set(result[1]) == {"Python", "Go"}
-
-    def test_fetch_single_repo_not_found(self, monkeypatch):
-        mock_auth = SimpleNamespace(get_project=lambda full_name: None)
-        monkeypatch.setattr(
-            f"{path_to_actual_module}.GitHubManager.authenticate",
-            lambda self, token: mock_auth,
-        )
-
-        fetcher = GitHubRepoFetcher()
-
-        with pytest.raises(DevDoxGitException, match=UNRECOGNIZED_GIT_FORMAT):
-            fetcher.fetch_single_repo("token123", "missing")
+    def authenticate(self, token: str):
+        self.last_auth = SpyAuthenticatedGitHubManager()
+        return self.last_auth
 
 
-class TestGitLabRepoFetcher:
-    def test_fetch_user_repositories_returns_expected_dict(self, monkeypatch):
-        mock_auth = SimpleNamespace(
-            get_user_repositories=lambda page, per_page: {
-                "pagination_info": {"total_count": 3},
-                "repositories": ["lab1", "lab2", "lab3"],
-            }
-        )
-        monkeypatch.setattr(
-            f"{path_to_actual_module}.GitLabManager.authenticate",
-            lambda self, token: mock_auth,
-        )
+class SpyAuthenticatedGitLabManager(FakeAuthenticatedGitLabManager):
+    def __init__(self):
+        super().__init__()
+        self.calls = []
 
-        fetcher = GitLabRepoFetcher("https://fake.gitlab")
-        result = fetcher.fetch_user_repositories("token123", 1, 3)
-        assert result == {"data_count": 3, "data": ["lab1", "lab2", "lab3"]}
-
-    def test_fetch_single_repo_success(self, monkeypatch):
-        repo = SimpleNamespace(id=2)
-        mock_auth = SimpleNamespace(
-            get_project=lambda name: repo, get_project_languages=lambda r: {"Java": 100}
-        )
-        monkeypatch.setattr(
-            f"{path_to_actual_module}.GitLabManager.authenticate",
-            lambda self, token: mock_auth,
-        )
-
-        fetcher = GitLabRepoFetcher()
-        result = fetcher.fetch_single_repo("token123", "some/project")
-        assert result[0] is repo
-        assert result[1] == ["Java"]
-
-    def test_fetch_single_repo_not_found(self, monkeypatch):
-        mock_auth = SimpleNamespace(get_project=lambda full_name: None)
-        monkeypatch.setattr(
-            f"{path_to_actual_module}.GitLabManager.authenticate",
-            lambda self, token: mock_auth,
-        )
-
-        fetcher = GitLabRepoFetcher()
-
-        with pytest.raises(DevDoxGitException, match=UNRECOGNIZED_GIT_FORMAT):
-            fetcher.fetch_single_repo("token123", "invalid")
+    def get_user_repositories(self, *args, **kwargs):
+        self.calls.append(("get_user_repositories", args, kwargs))
+        return super().get_user_repositories(*args, **kwargs)
 
 
-class TestRepoFetcher:
-    def test_get_github_returns_expected_types(self):
-        fetcher, transformer = RepoFetcher().get_components(GitHosting.GITHUB)
-        assert isinstance(fetcher, GitHubRepoFetcher)
-        assert isinstance(transformer, GitHubRepoResponseTransformer)
+class SpyGitLabManager:
+    """Drop-in replacement for rf.GitLabManager used inside GitLabRepoFetcher."""
+    def __init__(self, base_url):
+        self.base_url = base_url
+        self.last_auth = None
 
-    def test_get_gitlab_returns_expected_types(self):
-        fetcher, transformer = RepoFetcher().get_components(GitHosting.GITLAB)
-        assert isinstance(fetcher, GitLabRepoFetcher)
-        assert isinstance(transformer, GitLabRepoResponseTransformer)
+    def authenticate(self, token: str):
+        self.last_auth = SpyAuthenticatedGitLabManager()
+        return self.last_auth
 
-    def test_get_invalid_provider_returns_none(self):
 
-        fetcher, transformer = RepoFetcher().get_components("BITBUCKET")
+# --------------------------
+# Fixtures to patch managers used internally by fetchers
+# --------------------------
+@pytest.fixture
+def patched_github_manager(monkeypatch):
+    monkeypatch.setattr(rf, "GitHubManager", SpyGitHubManager)
+    return SpyGitHubManager
 
-        assert fetcher is None
-        assert transformer is None
+
+@pytest.fixture
+def patched_gitlab_manager(monkeypatch):
+    monkeypatch.setattr(rf, "GitLabManager", SpyGitLabManager)
+    return SpyGitLabManager
+
+
+# --------------------------
+# GitHubRepoFetcher tests
+# --------------------------
+def test_github_fetch_user_repositories_maps_pagination_and_returns_shape(
+    patched_github_manager,
+):
+    fetcher = rf.GitHubRepoFetcher()
+    out = fetcher.fetch_user_repositories(token="t", offset=2, limit=50)
+
+    # shape mapping
+    assert out == {"data_count": 2, "data": [{"name": "repo1"}, {"name": "repo2"}]}
+
+    # Ensure offset -> page+1 and limit -> per_page mapping happened
+    spy_auth = fetcher.manager.last_auth
+    (_, _, kwargs) = spy_auth.calls[-1]
+    assert kwargs["page"] == 3
+    assert kwargs["per_page"] == 50
+
+
+@pytest.mark.parametrize(
+    "remote",
+    [
+        "owner/repo",
+        "/owner/repo",  # leading slash shorthand
+        "https://github.com/owner/repo.git",  # URL style
+        "git@github.com:owner/repo.git",  # scp style
+    ],
+)
+def test_github_fetch_single_repo_returns_repo_and_languages(
+    patched_github_manager, remote
+):
+    fetcher = rf.GitHubRepoFetcher()
+    repo, langs = fetcher.fetch_single_repo(token="t", relative_path=remote)
+    assert repo == {"id": "owner/repo", "name": "fake-project"}
+    assert langs == ["Python"]
+
+
+def test_github_fetch_single_repo_returns_none_when_missing_repo(
+    monkeypatch, patched_github_manager
+):
+    fetcher = rf.GitHubRepoFetcher()
+
+    # Force the authenticated manager to return None for get_project
+    def _fake_authenticate(_self, _token):
+        mgr = SpyAuthenticatedGitHubManager()
+        mgr.get_project = lambda _id: None
+        return mgr
+
+    monkeypatch.setattr(fetcher.manager, "authenticate", types.MethodType(_fake_authenticate, fetcher.manager))
+
+    out = fetcher.fetch_single_repo(token="t", relative_path="owner/repo")
+    assert out is None
+
+
+def test_github_fetch_repo_user_returns_user(patched_github_manager):
+    fetcher = rf.GitHubRepoFetcher()
+    user = fetcher.fetch_repo_user(token="t")
+    assert user == {
+        "username": "fakeuser",
+        "id": 123,
+        "name": "Fake User",
+        "email": "fake@github.com",
+        "avatar_url": "https://fake-avatar.com",
+        "html_url": "https://github.com/fakeuser",
+    }
+
+
+def test_github_fetch_repo_user_returns_none_when_missing(
+    monkeypatch, patched_github_manager
+):
+    fetcher = rf.GitHubRepoFetcher()
+
+    def _fake_authenticate(_self, _token):
+        mgr = SpyAuthenticatedGitHubManager()
+        mgr.get_user = lambda: None
+        return mgr
+
+    monkeypatch.setattr(fetcher.manager, "authenticate", types.MethodType(_fake_authenticate, fetcher.manager))
+    assert fetcher.fetch_repo_user(token="t") is None
+
+
+# --------------------------
+# GitLabRepoFetcher tests
+# --------------------------
+def test_gitlab_fetch_user_repositories_maps_pagination_and_returns_shape(
+    patched_gitlab_manager,
+):
+    fetcher = rf.GitLabRepoFetcher()
+    out = fetcher.fetch_user_repositories(token="t", offset=0, limit=10)
+
+    # shape mapping
+    assert out == {"data_count": 2, "data": [{"name": "repo1"}, {"name": "repo2"}]}
+
+    # Ensure offset -> page+1 and limit -> per_page mapping happened
+    spy_auth = fetcher.manager.last_auth
+    (_, _, kwargs) = spy_auth.calls[-1]
+    assert kwargs["page"] == 1
+    assert kwargs["per_page"] == 10
+
+
+@pytest.mark.parametrize(
+    "remote",
+    [
+        "group/project",
+        "/group/project",
+        "https://gitlab.com/group/project.git",
+        "git@gitlab.com:group/project.git",
+    ],
+)
+def test_gitlab_fetch_single_repo_returns_repo_and_languages(
+    patched_gitlab_manager, remote
+):
+    fetcher = rf.GitLabRepoFetcher()
+    repo, langs = fetcher.fetch_single_repo(token="t", relative_path=remote)
+    assert repo == {"id": "group/project", "name": "fake-project"}
+    assert langs == ["Python"]
+
+
+def test_gitlab_fetch_single_repo_returns_none_when_missing_repo(
+    monkeypatch, patched_gitlab_manager
+):
+    fetcher = rf.GitLabRepoFetcher()
+
+    def _fake_authenticate(_self, _token):
+        mgr = SpyAuthenticatedGitLabManager()
+        mgr.get_project = lambda _id, timeout=30: None
+        return mgr
+
+    monkeypatch.setattr(fetcher.manager, "authenticate", types.MethodType(_fake_authenticate, fetcher.manager))
+    out = fetcher.fetch_single_repo(token="t", relative_path="group/project")
+    assert out is None
+
+
+def test_gitlab_fetch_repo_user_returns_user(patched_gitlab_manager):
+    fetcher = rf.GitLabRepoFetcher()
+    user = fetcher.fetch_repo_user(token="t")
+    assert user == {
+        "username": "fakeuser",
+        "id": 456,
+        "name": "Fake User",
+        "email": "fake@gitlab.com",
+        "avatar_url": "https://fake-avatar.com",
+        "web_url": "https://gitlab.com/fakeuser",
+    }
+
+
+def test_gitlab_fetch_repo_user_returns_none_when_missing(
+    monkeypatch, patched_gitlab_manager
+):
+    fetcher = rf.GitLabRepoFetcher()
+
+    def _fake_authenticate(_self, _token):
+        mgr = SpyAuthenticatedGitLabManager()
+        mgr.get_user = lambda timeout=30: None
+        return mgr
+
+    monkeypatch.setattr(fetcher.manager, "authenticate", types.MethodType(_fake_authenticate, fetcher.manager))
+    assert fetcher.fetch_repo_user(token="t") is None
+
+
+# --------------------------
+# RepoFetcher.get_components tests
+# --------------------------
+def test_repo_fetcher_get_components_with_enum(monkeypatch):
+    # Patch the module-level GitHosting enum with a lightweight stand-in
+    class _FakeGitHosting:
+        GITHUB = "github"
+        GITLAB = "gitlab"
+
+    monkeypatch.setattr(rf, "GitHosting", _FakeGitHosting)
+
+    # Also avoid constructing real managers inside nested fetchers
+    monkeypatch.setattr(rf, "GitHubManager", SpyGitHubManager)
+    monkeypatch.setattr(rf, "GitLabManager", SpyGitLabManager)
+
+    repo_fetcher = rf.RepoFetcher()
+
+    gh_fetcher, gh_xf = repo_fetcher.get_components(rf.GitHosting.GITHUB)
+    assert isinstance(gh_fetcher, rf.GitHubRepoFetcher)
+    assert isinstance(gh_xf, rf.GitHubRepoResponseTransformer)
+
+    gl_fetcher, gl_xf = repo_fetcher.get_components(rf.GitHosting.GITLAB)
+    assert isinstance(gl_fetcher, rf.GitLabRepoFetcher)
+    assert isinstance(gl_xf, rf.GitLabRepoResponseTransformer)
+
+
+def test_repo_fetcher_get_components_unknown_returns_none_pair(monkeypatch):
+    class _FakeGitHosting:
+        GITHUB = "github"
+        GITLAB = "gitlab"
+
+    monkeypatch.setattr(rf, "GitHosting", _FakeGitHosting)
+
+    repo_fetcher = rf.RepoFetcher()
+    out = repo_fetcher.get_components("bitbucket")
+    assert out == (None, None)
