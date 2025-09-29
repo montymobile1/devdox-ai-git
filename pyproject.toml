@@ -33,8 +33,6 @@ classifiers = [
 
 # runtime dependencies
 dependencies = [
-  "devdox-ai-models @ git+https://github.com/montymobile1/devdox-ai-models.git@b0395a4",
-
   "requests==2.32.4",
 
   "pydantic==2.11.4",
@@ -43,7 +41,9 @@ dependencies = [
   "python-gitlab==5.6.0",
   "GitPython==3.1.44",
   "PyGithub==2.6.1",
-   "coverage==7.10.6"
+
+  # related to testing
+  "coverage==7.10.6"
 ]
 
 # optional extras

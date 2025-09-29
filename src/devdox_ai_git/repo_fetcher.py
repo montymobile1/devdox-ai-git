@@ -3,10 +3,10 @@ from typing import Any, Protocol
 from github.AuthenticatedUser import AuthenticatedUser
 from github.Repository import Repository
 from gitlab.v4.objects import Project
-from models_src.dto.repo import GitHosting
 
 from devdox_ai_git.git_managers import GitHubManager, GitLabManager
 from devdox_ai_git.schema.repo import (
+    GitHosting,
     GitHubRepoResponseTransformer,
     GitLabRepoResponseTransformer,
 )
