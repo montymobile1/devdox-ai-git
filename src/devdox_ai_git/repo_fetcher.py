@@ -127,9 +127,10 @@ class RepoFetcher:
         | tuple[None, None]
     ):
         """bool represents whether it has a data transformer which can aid"""
-        if provider == GitHosting.GITHUB:
+        provider_value = provider.value if isinstance(provider, GitHosting) else provider
+        if provider_value == GitHosting.GITHUB.value or provider == GitHosting.GITHUB:
             return GitHubRepoFetcher(), GitHubRepoResponseTransformer()
-        elif provider == GitHosting.GITLAB:
+        elif provider_value == GitHosting.GITLAB.value or provider == GitHosting.GITLAB:
             return GitLabRepoFetcher(), GitLabRepoResponseTransformer()
 
         return None, None
