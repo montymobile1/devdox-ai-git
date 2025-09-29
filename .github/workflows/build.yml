@@ -29,7 +29,7 @@ jobs:
       - name: Run tests and generate coverage
         run: |
           # Run tests with coverage
-          coverage run -m pytest tests/ --cov=devdox-ai-git --cov-report=xml:coverage.xml -v
+          coverage run -m pytest tests/ --cov=devdox_ai_git --cov-report=xml:coverage.xml -v
   
 
       - name: Upload coverage reports
