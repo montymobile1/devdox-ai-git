@@ -1,4 +1,5 @@
 from datetime import datetime
+from enum import Enum
 from types import SimpleNamespace
 from typing import Any
 
@@ -7,6 +8,9 @@ from github.Repository import Repository
 from gitlab.v4.objects import Project
 from pydantic import BaseModel, Field
 
+class GitHosting(str, Enum):
+    GITLAB = "gitlab"
+    GITHUB = "github"
 
 class NormalizedGitRepo(BaseModel):
     """Schema for Git provider repository response (unified format)"""
