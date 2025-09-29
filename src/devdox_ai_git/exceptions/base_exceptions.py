@@ -33,7 +33,7 @@ class DevDoxGitException(Exception):
         self.public_context = public_context or {}
         self.internal_context = internal_context or {}
 
-        if not log_level:
+        if log_level is None:
             log_level = logging.WARNING
 
         self.log_level = logging.getLevelName(log_level).lower()
