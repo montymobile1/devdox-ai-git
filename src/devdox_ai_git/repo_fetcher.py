@@ -22,6 +22,8 @@ class IRepoFetcher(Protocol):
 
     def fetch_repo_user(self, token): ...
 
+    def create_repository(self, token, name, description, visibility): ...
+
 
 class GitHubRepoFetcher(IRepoFetcher):
     def __init__(self, base_url: str = GitHubManager.default_base_url):
@@ -39,6 +41,17 @@ class GitHubRepoFetcher(IRepoFetcher):
             "data_count": result["pagination_info"]["total_count"],
             "data": result["repositories"],
         }
+
+    def create_repository(self, token, name, description, visibility):
+        authenticated_github_manager = self.manager.authenticate(token)
+
+        repository = authenticated_github_manager.create_repository(
+            name=name,
+            description=description or "",
+            visibility=visibility,
+        )
+
+        return repository
 
     def fetch_single_repo(
         self, token: str, relative_path: str
