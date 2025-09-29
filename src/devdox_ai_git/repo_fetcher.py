@@ -42,7 +42,13 @@ class GitHubRepoFetcher(IRepoFetcher):
             "data": result["repositories"],
         }
 
-    def create_repository(self, token, name, description, visibility):
+    def create_repository(
+        self,
+        token: str,
+        name: str,
+        description: str | None,
+        visibility: str,
+    ) -> Repository:
         authenticated_github_manager = self.manager.authenticate(token)
 
         repository = authenticated_github_manager.create_repository(
@@ -86,6 +92,21 @@ class GitHubRepoFetcher(IRepoFetcher):
 class GitLabRepoFetcher(IRepoFetcher):
     def __init__(self, base_url: str = GitLabManager.default_base_url):
         self.manager = GitLabManager(base_url)
+
+    def create_repository(  self,
+        token: str,
+        name: str,
+        description: str | None,
+        visibility: str)->Project:
+        authenticated_gitlab_manager = self.manager.authenticate(token)
+
+        repository = authenticated_gitlab_manager.create_repository(
+            name=name,
+            description=description or "",
+            visibility=visibility,
+        )
+
+        return repository
 
     def fetch_user_repositories(
         self, token: str, offset: int, limit: int
