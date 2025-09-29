@@ -41,9 +41,6 @@ dependencies = [
   "python-gitlab==5.6.0",
   "GitPython==3.1.44",
   "PyGithub==2.6.1",
-
-  # related to testing
-  "coverage==7.10.6"
 ]
 
 # optional extras
