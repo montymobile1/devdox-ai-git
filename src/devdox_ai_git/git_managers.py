@@ -341,7 +341,7 @@ class AuthenticatedGitLabManager:
                 "current_page": page,
                 "per_page": per_page,
                 "total_count": int(response.headers.get("X-Total") or 0) or 0,
-                "total_pages": int(response.headers.get("X-Total-Pages", 1)),
+                "total_pages": int(response.headers.get("X-Total-Pages") or 1),
                 "next_page": int(response.headers.get("X-Next-Page") or 0) or None,
                 "prev_page": int(response.headers.get("X-Prev-Page") or 0) or None,
             }
