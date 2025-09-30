@@ -161,7 +161,7 @@ class AuthenticatedGitHubManager:
             name: str,
             description: Optional[str] = None,
             visibility: str = "private",
-            auto_init: bool = False,
+            auto_init: bool = True,
 
     ) :
         """
@@ -634,7 +634,7 @@ class AuthenticatedGitLabManager:
             name: str,
             description: Optional[str] = None,
             visibility: str = "private",
-            auto_init: bool = False,
+            auto_init: bool = True,
             timeout: int = DEFAULT_TIMEOUT,
     ) :
         """
