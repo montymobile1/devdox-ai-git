@@ -61,7 +61,7 @@ class GitHubRepoFetcher(IRepoFetcher):
 
         return repository
 
-    def create_branch(self, token: str, project_id: int, branch_name: str, source_branch: str):
+    def create_branch(self, token: str, project_id: str, branch_name: str, source_branch: str):
         authenticated_github_manager = self.manager.authenticate(token)
         branch = authenticated_github_manager.create_branch( project_id, branch_name, source_branch)
         return branch
@@ -115,7 +115,7 @@ class GitLabRepoFetcher(IRepoFetcher):
 
         return repository
 
-    def create_branch(self, token: str, project_id: int, branch_name: str, source_branch: str):
+    def create_branch(self, token: str, project_id: str, branch_name: str, source_branch: str):
         authenticated_gitlab_manager = self.manager.authenticate(token)
         branch = authenticated_gitlab_manager.create_branch( project_id, branch_name, source_branch)
         return branch
