@@ -53,7 +53,32 @@ class IManager(Protocol):
     @abstractmethod
     def authenticate(self, access_token): ...
 
-class AuthenticatedGitHubManager:
+class IAuthenticatedGitHubManager(Protocol):
+
+    @abstractmethod
+    def get_project(self, full_name_or_id: str | int): ...
+
+    @abstractmethod
+    def get_project_languages(
+        self, full_name_or_id_or_repository: str | int | Repository
+    ): ...
+
+    @abstractmethod
+    def get_user(self): ...
+
+    @abstractmethod
+    def get_user_repositories(
+            self,
+            page=1,
+            per_page=20,
+            visibility="all",
+            affiliation="owner,collaborator,organization_member",
+            sort="updated",
+            direction="desc",
+    ): ...
+
+
+class AuthenticatedGitHubManager(IAuthenticatedGitHubManager):
     def __init__(self, base_url, git_client):
         self.base_url = base_url
         self._git_client: Github = git_client
@@ -254,10 +279,31 @@ class GitHubManager(IManager):
             "prev_page": page - 1 if has_prev_page else None,
         }
 
+class IAuthenticatedGitLabManager(Protocol):
+    @staticmethod
+    def get_default_timeout():
+        return 30
 
-class AuthenticatedGitLabManager:
+    @abstractmethod
+    def get_project(self, project_id, timeout: int): ...
 
-    DEFAULT_TIMEOUT = 30
+    @abstractmethod
+    def get_project_languages(
+            self, project_or_id: int | Project, timeout: int
+    ): ...
+
+    @abstractmethod
+    def get_user(self, timeout: int): ...
+
+    @abstractmethod
+    def get_user_repositories(
+            self, timeout: int, page=1, per_page=20
+    ): ...
+
+
+class AuthenticatedGitLabManager(IAuthenticatedGitLabManager):
+
+    DEFAULT_TIMEOUT = IAuthenticatedGitLabManager.get_default_timeout()
 
     def __init__(
         self,
@@ -323,7 +369,7 @@ class AuthenticatedGitLabManager:
             ) from e
 
     def get_user_repositories(
-        self, page=1, per_page=20, timeout: int = DEFAULT_TIMEOUT
+        self, timeout: int = DEFAULT_TIMEOUT, page=1, per_page=20
     ):
         try:
             per_page = max(1, min(per_page, 100))
