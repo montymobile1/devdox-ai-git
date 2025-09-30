@@ -1,4 +1,4 @@
-from typing import Any, Protocol
+from typing import Any, Protocol, Optional, Dict
 
 from github.AuthenticatedUser import AuthenticatedUser
 from github.Repository import Repository
@@ -25,6 +25,30 @@ class IRepoFetcher(Protocol):
     def create_repository(self, token, name, description, visibility): ...
 
     def create_branch(self, token, project_id, branch_name, source_branch): ...
+
+    def commit_files(
+            self,
+            token: str,
+            repository: str,
+            branch: str,
+            files: Dict[str, str],
+            commit_message: str,
+            author_name: Optional[str] = None,
+            author_email: Optional[str] = None
+    ) -> Dict[str, Any]: ...
+
+    def push_single_file(
+            self,
+            token: str,
+            repository: str,
+            file_path: str,
+            content: str,
+            commit_message: str,
+            branch: str,
+            update: bool = False,
+            author_name: Optional[str] = None,
+            author_email: Optional[str] = None
+    ) -> Dict[str, Any]: ...
 
 
 class GitHubRepoFetcher(IRepoFetcher):
@@ -95,6 +119,47 @@ class GitHubRepoFetcher(IRepoFetcher):
 
         return user
 
+    def commit_files(
+            self,
+            token: str,
+            repository: str,
+            branch: str,
+            files: Dict[str, str],
+            commit_message: str,
+            author_name: Optional[str] = None,
+            author_email: Optional[str] = None
+    ) -> Dict[str, Any]:
+        authenticated_github_manager = self.manager.authenticate(token)
+        return authenticated_github_manager.commit_files(
+            repository=repository,
+            branch=branch,
+            files=files,
+            commit_message=commit_message,
+            author_name=author_name,
+            author_email=author_email
+        )
+
+    def push_single_file(
+            self,
+            token: str,
+            repository: str,
+            file_path: str,
+            content: str,
+            commit_message: str,
+            branch: str,
+            update: bool = False,
+            author_name: Optional[str] = None,
+            author_email: Optional[str] = None
+    ) -> Dict[str, Any]:
+        authenticated_github_manager = self.manager.authenticate(token)
+        return authenticated_github_manager.push_single_file(
+            repository=repository,
+            file_path=file_path,
+            content=content,
+            commit_message=commit_message,
+            branch=branch,
+            update=update
+        )
 
 class GitLabRepoFetcher(IRepoFetcher):
     def __init__(self, base_url: str = GitLabManager.default_base_url):
@@ -162,6 +227,51 @@ class GitLabRepoFetcher(IRepoFetcher):
             return None
 
         return user
+
+    def commit_files(
+            self,
+            token: str,
+            repository: str,
+            branch: str,
+            files: Dict[str, str],
+            commit_message: str,
+            author_name: Optional[str] = None,
+            author_email: Optional[str] = None
+    ) -> Dict[str, Any]:
+        authenticated_gitlab_manager = self.manager.authenticate(token)
+        return authenticated_gitlab_manager.commit_files(
+            project_or_id=repository,
+            branch=branch,
+            files=files,
+            commit_message=commit_message,
+            author_name=author_name,
+            author_email=author_email
+        )
+
+    def push_single_file(
+            self,
+            token: str,
+            repository: str,
+            file_path: str,
+            content: str,
+            commit_message: str,
+            branch: str,
+            update: bool = False,
+            author_name: Optional[str] = None,
+            author_email: Optional[str] = None
+    ) -> Dict[str, Any]:
+        authenticated_gitlab_manager = self.manager.authenticate(token)
+        return authenticated_gitlab_manager.push_single_file(
+            project_or_id=repository,
+            file_path=file_path,
+            content=content,
+            commit_message=commit_message,
+            branch=branch,
+            update=update,
+            author_name=author_name,
+            author_email=author_email
+        )
+
 
 
 class RepoFetcher:
