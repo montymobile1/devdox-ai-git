@@ -33,8 +33,6 @@ classifiers = [
 
 # runtime dependencies
 dependencies = [
-  "devdox-ai-models @ git+https://github.com/montymobile1/devdox-ai-models.git@9ce0798",
-
   "requests==2.32.4",
 
   "pydantic==2.11.4",
@@ -62,7 +60,11 @@ dev = [
 
   # Typing
   "mypy>=1.8",
-  "types-requests" # Type stubs for the 'requests' library. Provides static typing info for Mypy/IDE checks, not imported at runtime. Safe to keep in dev only.
+  "types-requests", # Type stubs for the 'requests' library. Provides static typing info for Mypy/IDE checks, not imported at runtime. Safe to keep in dev only.
+
+  # related to testing
+  "coverage==7.10.6"
+
 ]
 
 [project.urls]
