@@ -85,10 +85,18 @@ class GitHubRepoFetcher(IRepoFetcher):
 
         return repository
 
+    def delete_repository(self, token: str, repository: str):
+        authenticated_github_manager = self.manager.authenticate(token)
+        return authenticated_github_manager.delete_repository(repository)
+
     def create_branch(self, token: str, project_id: str, branch_name: str, source_branch: str):
         authenticated_github_manager = self.manager.authenticate(token)
         branch = authenticated_github_manager.create_branch( project_id, branch_name, source_branch)
         return branch
+
+    def delete_branch(self, token: str, project_id: str, branch_name: str):
+        authenticated_github_manager = self.manager.authenticate(token)
+        return authenticated_github_manager.delete_branch(project_id, branch_name)
 
     def fetch_single_repo(
         self, token: str, relative_path: str
@@ -177,14 +185,20 @@ class GitLabRepoFetcher(IRepoFetcher):
             description=description or "",
             visibility=visibility,
         )
-
         return repository
+
+    def delete_repository(self, token: str, repository: str):
+        authenticated_gitlab_manager = self.manager.authenticate(token)
+        return authenticated_gitlab_manager.delete_repository(repository)
 
     def create_branch(self, token: str, project_id: str, branch_name: str, source_branch: str):
         authenticated_gitlab_manager = self.manager.authenticate(token)
         branch = authenticated_gitlab_manager.create_branch( project_id, branch_name, source_branch)
         return branch
 
+    def delete_branch(self, token: str, project_id: str, branch_name: str):
+        authenticated_gitlab_manager = self.manager.authenticate(token)
+        return authenticated_gitlab_manager.delete_branch(project_id, branch_name)
 
     def fetch_user_repositories(
         self, token: str, offset: int, limit: int

@@ -204,6 +204,51 @@ class AuthenticatedGitHubManager:
                 },
             ) from e
 
+    def delete_repository(
+            self,
+            repository: str | Repository,
+    ) -> Dict[str, Any]:
+        """
+        Delete a repository. This action is irreversible.
+
+        Args:
+            repository: Repository full name (e.g., 'owner/repo') or Repository object
+
+        Returns:
+            Dict containing deletion confirmation
+
+        Raises:
+            DevDoxGitException: If repository deletion fails
+        """
+        try:
+            # Get repository object if string provided
+            if isinstance(repository, str):
+                repo = self._git_client.get_repo(repository)
+                repo_name = repository
+            else:
+                repo = repository
+                repo_name = repo.full_name
+
+            # Delete the repository
+            repo.delete()
+
+            return {
+                "repository_name": repo_name,
+                "deleted": True,
+                "message": f"Repository '{repo_name}' deleted successfully"
+            }
+
+        except GithubException as e:
+            raise DevDoxGitException(
+                user_message=f"Failed to delete repository: {str(e)}",
+                log_message=f"Repository deletion failed for '{repository if isinstance(repository, str) else repository.full_name}'",
+                internal_context={
+                    "provider": GITHUB_REPOSITORY_NAME,
+                    "manager": self.__class__.__name__,
+                    "repository": repository if isinstance(repository, str) else repository.full_name,
+                },
+            ) from e
+
     def create_branch(
             self,
             repository: str | Repository,
@@ -259,6 +304,55 @@ class AuthenticatedGitHubManager:
                     "manager": self.__class__.__name__,
                     "branch_name": branch_name,
                     "source_branch": source_branch,
+                },
+            ) from e
+
+    def delete_branch(
+            self,
+            repository: str | Repository,
+            branch_name: str,
+    ) -> Dict[str, Any]:
+        """
+        Delete a branch from a repository.
+
+        Args:
+            repository: Repository full name (e.g., 'owner/repo') or Repository object
+            branch_name: Name of the branch to delete
+
+        Returns:
+            Dict containing deletion confirmation
+
+        Raises:
+            DevDoxGitException: If branch deletion fails
+        """
+        try:
+            # Get repository object if string provided
+            if isinstance(repository, str):
+                repo = self._git_client.get_repo(repository)
+            else:
+                repo = repository
+
+            # Get the branch reference
+            branch_ref = repo.get_git_ref(f"heads/{branch_name}")
+
+            # Delete the branch reference
+            branch_ref.delete()
+
+            return {
+                "branch_name": branch_name,
+                "repository": repo.full_name,
+                "deleted": True,
+                "message": f"Branch '{branch_name}' deleted successfully"
+            }
+
+        except GithubException as e:
+            raise DevDoxGitException(
+                user_message=f"Failed to delete branch: {str(e)}",
+                log_message=f"Branch deletion failed for '{branch_name}'",
+                internal_context={
+                    "provider": GITHUB_REPOSITORY_NAME,
+                    "manager": self.__class__.__name__,
+                    "branch_name": branch_name,
                 },
             ) from e
 
@@ -681,9 +775,61 @@ class AuthenticatedGitLabManager:
                 },
             ) from e
 
+    def delete_repository(
+            self,
+            project_or_id: str | Project,
+            timeout: int = DEFAULT_TIMEOUT,
+    ) -> Dict[str, Any]:
+        """
+        Delete a repository/project. This action is irreversible.
+
+        Args:
+            project_or_id: Project ID or Project object
+            timeout: Request timeout in seconds
+
+        Returns:
+            Dict containing deletion confirmation
+
+        Raises:
+            DevDoxGitException: If repository deletion fails
+        """
+        try:
+            # Get project object if ID provided
+            if isinstance(project_or_id, int):
+                project = self._git_client.projects.get(project_or_id, timeout=timeout)
+                project_name = f"Project ID: {project_or_id}"
+            else:
+                project = project_or_id
+                project_name = project.name
+
+            project_id = project.id
+            project_full_name = getattr(project, 'path_with_namespace', project.name)
+
+            # Delete the project
+            project.delete()
+
+            return {
+                "project_id": project_id,
+                "project_name": project_full_name,
+                "deleted": True,
+                "message": f"Repository '{project_full_name}' deleted successfully"
+            }
+
+        except GitlabError as e:
+            raise DevDoxGitException(
+                user_message=f"Failed to delete repository: {str(e)}",
+                log_message=f"Repository deletion failed for '{project_or_id}'",
+                internal_context={
+                    "provider": GITLAB_REPOSITORY_NAME,
+                    "manager": self.__class__.__name__,
+                    "project": project_or_id,
+                },
+            ) from e
+
+
     def create_branch(
             self,
-            project_or_id: int | Project,
+            project_or_id: str | Project,
             branch_name: str,
             source_branch: Optional[str] = None,
             timeout: int = DEFAULT_TIMEOUT,
@@ -744,6 +890,58 @@ class AuthenticatedGitLabManager:
                     "source_branch": source_branch,
                 },
             ) from e
+
+    def delete_branch(
+            self,
+            project_or_id: str | Project,
+            branch_name: str,
+            timeout: int = DEFAULT_TIMEOUT,
+    ) -> Dict[str, Any]:
+        """
+        Delete a branch from a repository.
+
+        Args:
+            project_or_id: Project ID or Project object
+            branch_name: Name of the branch to delete
+            timeout: Request timeout in seconds
+
+        Returns:
+            Dict containing deletion confirmation
+
+        Raises:
+            DevDoxGitException: If branch deletion fails
+        """
+        try:
+            # Get project object if ID provided
+            if isinstance(project_or_id, int):
+                project = self._git_client.projects.get(project_or_id, timeout=timeout)
+            else:
+                project = project_or_id
+
+            # Get the branch and delete it
+            branch = project.branches.get(branch_name, timeout=timeout)
+            branch.delete()
+
+            return {
+                "branch_name": branch_name,
+                "project_id": project.id,
+                "project_name": project.name,
+                "deleted": True,
+                "message": f"Branch '{branch_name}' deleted successfully"
+            }
+
+        except GitlabError as e:
+            raise DevDoxGitException(
+                user_message=f"Failed to delete branch: {str(e)}",
+                log_message=f"Branch deletion failed for '{branch_name}'",
+                internal_context={
+                    "provider": GITLAB_REPOSITORY_NAME,
+                    "manager": self.__class__.__name__,
+                    "branch_name": branch_name,
+                },
+            ) from e
+
+
 
     def commit_files(
             self,
