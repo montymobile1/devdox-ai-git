@@ -24,6 +24,8 @@ class IRepoFetcher(Protocol):
 
     def create_repository(self, token, name, description, visibility): ...
 
+    def create_branch(self, token, project_id, branch_name, source_branch): ...
+
 
 class GitHubRepoFetcher(IRepoFetcher):
     def __init__(self, base_url: str = GitHubManager.default_base_url):
@@ -58,6 +60,11 @@ class GitHubRepoFetcher(IRepoFetcher):
         )
 
         return repository
+
+    def create_branch(self, token: str, project_id: int, branch_name: str, source_branch: str):
+        authenticated_github_manager = self.manager.authenticate(token)
+        branch = authenticated_github_manager.create_branch( project_id, branch_name, source_branch)
+        return branch
 
     def fetch_single_repo(
         self, token: str, relative_path: str
@@ -107,6 +114,12 @@ class GitLabRepoFetcher(IRepoFetcher):
         )
 
         return repository
+
+    def create_branch(self, token: str, project_id: int, branch_name: str, source_branch: str):
+        authenticated_gitlab_manager = self.manager.authenticate(token)
+        branch = authenticated_gitlab_manager.create_branch( project_id, branch_name, source_branch)
+        return branch
+
 
     def fetch_user_repositories(
         self, token: str, offset: int, limit: int
