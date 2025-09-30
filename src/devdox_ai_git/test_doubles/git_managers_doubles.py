@@ -1,7 +1,14 @@
-from devdox_ai_git.git_managers import IManager
+from github.Project import Project
+from github.Repository import Repository
+
+from devdox_ai_git.git_managers import (
+    IAuthenticatedGitHubManager,
+    IAuthenticatedGitLabManager,
+    IManager,
+)
 
 
-class FakeAuthenticatedGitHubManager:
+class FakeAuthenticatedGitHubManager(IAuthenticatedGitHubManager):
     def __init__(self):
         self.user = {
             "username": "fakeuser",
@@ -15,20 +22,30 @@ class FakeAuthenticatedGitHubManager:
     def get_user(self):
         return self.user
 
-    def get_project(self, full_name_or_id):
+    def get_project(self, full_name_or_id: str | int):
         return {"id": full_name_or_id, "name": "fake-project"}
 
-    def get_project_languages(self, repo):
+    def get_project_languages(
+        self, full_name_or_id_or_repository: str | int | Repository
+    ):
         return {"Python": 100}
 
-    def get_user_repositories(self, *args, **kwargs):
+    def get_user_repositories(
+        self,
+        page=1,
+        per_page=20,
+        visibility="all",
+        affiliation="owner,collaborator,organization_member",
+        sort="updated",
+        direction="desc",
+    ):
         return {
             "repositories": [{"name": "repo1"}, {"name": "repo2"}],
             "pagination_info": {"total_count": 2},
         }
 
 
-class FakeAuthenticatedGitLabManager:
+class FakeAuthenticatedGitLabManager(IAuthenticatedGitLabManager):
     def __init__(self):
         self.user = {
             "username": "fakeuser",
@@ -45,10 +62,10 @@ class FakeAuthenticatedGitLabManager:
     def get_project(self, project_id, timeout=30):
         return {"id": project_id, "name": "fake-project"}
 
-    def get_project_languages(self, project, timeout=30):
+    def get_project_languages(self,  project_or_id: int | Project, timeout: int=30):
         return {"Python": 100}
 
-    def get_user_repositories(self, *args, **kwargs):
+    def get_user_repositories(self, timeout: int=30, page=1, per_page=20):
         return {
             "repositories": [{"name": "repo1"}, {"name": "repo2"}],
             "pagination_info": {"total_count": 2},
