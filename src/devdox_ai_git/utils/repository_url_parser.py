@@ -11,12 +11,6 @@ from devdox_ai_git.exceptions.exception_constants import (
 )
 from devdox_ai_git.schema.repo import GitHosting
 
-from devdox_ai_git.exceptions.base_exceptions import DevDoxGitException
-from devdox_ai_git.exceptions.exception_constants import (
-    MISSING_NAMESPACE__REPO,
-    UNRECOGNIZED_GIT_FORMAT,
-)
-
 
 @dataclass(frozen=True)
 class RepoRef:
