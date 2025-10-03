@@ -845,10 +845,8 @@ class AuthenticatedGitLabManager(IAuthenticatedGitLabManager):
             # Get project object if ID provided
             if isinstance(project_or_id, int):
                 project = self._git_client.projects.get(project_or_id, timeout=timeout)
-                project_name = f"Project ID: {project_or_id}"
             else:
                 project = project_or_id
-                project_name = project.name
 
             project_id = project.id
             project_full_name = getattr(project, 'path_with_namespace', project.name)
@@ -1130,7 +1128,7 @@ class AuthenticatedGitLabManager(IAuthenticatedGitLabManager):
                 # Get existing file and update it
                 existing_file = project.files.get(file_path=file_path, ref=branch)
                 existing_file.content = content
-                result = existing_file.save(
+                _ = existing_file.save(
                     branch=branch,
                     commit_message=commit_message,
                     **({k: v for k, v in [("author_name", author_name), ("author_email", author_email)] if v})
