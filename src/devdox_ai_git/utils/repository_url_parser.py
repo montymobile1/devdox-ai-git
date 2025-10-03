@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from urllib.parse import urlparse
-
 from devdox_ai_git.exceptions.base_exceptions import DevDoxGitException
 from devdox_ai_git.exceptions.exception_constants import (
     MISSING_NAMESPACE__REPO,

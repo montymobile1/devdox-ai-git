@@ -17,7 +17,6 @@ from devdox_ai_git.exceptions.exception_constants import (
     GIT_REPOS_FETCH_FAILED,
     GIT_USER_FETCH_FAILED,
 )
-from devdox_ai_git.utils.repository_url_parser import parse_git_remote
 
 GITHUB_REPOSITORY_NAME = "GitHub"
 GITLAB_REPOSITORY_NAME = "GitLab"
@@ -86,10 +85,6 @@ class AuthenticatedGitHubManager(IAuthenticatedGitHubManager):
 
     def get_project(self, full_name_or_id: str | int):
         try:
-            if isinstance(full_name_or_id, str):
-                repo_ref = parse_git_remote(full_name_or_id)
-                full_name_or_id = repo_ref.full_name
-
             return self._git_client.get_repo(full_name_or_id)
         except GithubException as e:
             raise DevDoxGitException(
@@ -108,10 +103,6 @@ class AuthenticatedGitHubManager(IAuthenticatedGitHubManager):
             if isinstance(full_name_or_id_or_repository, Repository):
                 return full_name_or_id_or_repository.get_languages()
             else:
-                if isinstance(full_name_or_id_or_repository, str):
-                    repo_ref = parse_git_remote(full_name_or_id_or_repository)
-                    full_name_or_id_or_repository = repo_ref.full_name
-
                 return self._git_client.get_repo(
                     full_name_or_id_or_repository
                 ).get_languages()
@@ -328,11 +319,6 @@ class AuthenticatedGitLabManager(IAuthenticatedGitLabManager):
 
     def get_project(self, project_id, timeout: int = DEFAULT_TIMEOUT) -> Project:
         try:
-
-            if isinstance(project_id, str):
-                repo_ref = parse_git_remote(project_id)
-                project_id = repo_ref.full_name
-
             return self._git_client.projects.get(
                 project_id, statistics=True, timeout=timeout
             )
@@ -343,7 +329,7 @@ class AuthenticatedGitLabManager(IAuthenticatedGitLabManager):
                 internal_context={
                     "provider": GITLAB_REPOSITORY_NAME,
                     "manager": self.__class__.__name__,
-                },
+                }
             ) from e
 
     def get_project_languages(
@@ -353,11 +339,6 @@ class AuthenticatedGitLabManager(IAuthenticatedGitLabManager):
             if isinstance(project_or_id, Project):
                 return project_or_id.languages()
             else:
-
-                if isinstance(project_or_id, str):
-                    repo_ref = parse_git_remote(project_or_id)
-                    project_or_id = repo_ref.full_name
-
                 return self._git_client.projects.get(
                     project_or_id, timeout=timeout
                 ).languages()
