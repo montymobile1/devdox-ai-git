@@ -1,4 +1,4 @@
-from typing import Any, Protocol
+from typing import Any, Protocol, Optional, Dict
 
 from github.AuthenticatedUser import AuthenticatedUser
 from github.Repository import Repository
@@ -22,6 +22,34 @@ class IRepoFetcher(Protocol):
 
     def fetch_repo_user(self, token): ...
 
+    def create_repository(self, token, name, description, visibility): ...
+
+    def create_branch(self, token, project_id, branch_name, source_branch): ...
+
+    def commit_files(
+            self,
+            token: str,
+            repository: str,
+            branch: str,
+            files: Dict[str, str],
+            commit_message: str,
+            author_name: Optional[str] = None,
+            author_email: Optional[str] = None
+    ) -> Dict[str, Any]: ...
+
+    def push_single_file(
+            self,
+            token: str,
+            repository: str,
+            file_path: str,
+            content: str,
+            commit_message: str,
+            branch: str,
+            update: bool = False,
+            author_name: Optional[str] = None,
+            author_email: Optional[str] = None
+    ) -> Dict[str, Any]: ...
+
 
 class GitHubRepoFetcher(IRepoFetcher):
     def __init__(self, base_url: str = GitHubManager.default_base_url):
@@ -39,6 +67,36 @@ class GitHubRepoFetcher(IRepoFetcher):
             "data_count": result["pagination_info"]["total_count"],
             "data": result["repositories"],
         }
+
+    def create_repository(
+        self,
+        token: str,
+        name: str,
+        description: str | None,
+        visibility: str,
+    ) -> Repository:
+        authenticated_github_manager = self.manager.authenticate(token)
+
+        repository = authenticated_github_manager.create_repository(
+            name=name,
+            description=description or "",
+            visibility=visibility,
+        )
+
+        return repository
+
+    def delete_repository(self, token: str, repository: str):
+        authenticated_github_manager = self.manager.authenticate(token)
+        return authenticated_github_manager.delete_repository(repository)
+
+    def create_branch(self, token: str, project_id: str, branch_name: str, source_branch: str):
+        authenticated_github_manager = self.manager.authenticate(token)
+        branch = authenticated_github_manager.create_branch( project_id, branch_name, source_branch)
+        return branch
+
+    def delete_branch(self, token: str, project_id: str, branch_name: str):
+        authenticated_github_manager = self.manager.authenticate(token)
+        return authenticated_github_manager.delete_branch(project_id, branch_name)
 
     def fetch_single_repo(
         self, token: str, relative_path: str
@@ -69,10 +127,78 @@ class GitHubRepoFetcher(IRepoFetcher):
 
         return user
 
+    def commit_files(
+            self,
+            token: str,
+            repository: str,
+            branch: str,
+            files: Dict[str, str],
+            commit_message: str,
+            author_name: Optional[str] = None,
+            author_email: Optional[str] = None
+    ) -> Dict[str, Any]:
+        authenticated_github_manager = self.manager.authenticate(token)
+        return authenticated_github_manager.commit_files(
+            repository=repository,
+            branch=branch,
+            files=files,
+            commit_message=commit_message,
+            author_name=author_name,
+            author_email=author_email
+        )
+
+    def push_single_file(
+            self,
+            token: str,
+            repository: str,
+            file_path: str,
+            content: str,
+            commit_message: str,
+            branch: str,
+            update: bool = False,
+            author_name: Optional[str] = None,
+            author_email: Optional[str] = None
+    ) -> Dict[str, Any]:
+        authenticated_github_manager = self.manager.authenticate(token)
+        return authenticated_github_manager.push_single_file(
+            repository=repository,
+            file_path=file_path,
+            content=content,
+            commit_message=commit_message,
+            branch=branch,
+            update=update
+        )
 
 class GitLabRepoFetcher(IRepoFetcher):
     def __init__(self, base_url: str = GitLabManager.default_base_url):
         self.manager = GitLabManager(base_url)
+
+    def create_repository(  self,
+        token: str,
+        name: str,
+        description: str | None,
+        visibility: str)->Project:
+        authenticated_gitlab_manager = self.manager.authenticate(token)
+
+        repository = authenticated_gitlab_manager.create_repository(
+            name=name,
+            description=description or "",
+            visibility=visibility,
+        )
+        return repository
+
+    def delete_repository(self, token: str, repository: str):
+        authenticated_gitlab_manager = self.manager.authenticate(token)
+        return authenticated_gitlab_manager.delete_repository(repository)
+
+    def create_branch(self, token: str, project_id: str, branch_name: str, source_branch: str):
+        authenticated_gitlab_manager = self.manager.authenticate(token)
+        branch = authenticated_gitlab_manager.create_branch( project_id, branch_name, source_branch)
+        return branch
+
+    def delete_branch(self, token: str, project_id: str, branch_name: str):
+        authenticated_gitlab_manager = self.manager.authenticate(token)
+        return authenticated_gitlab_manager.delete_branch(project_id, branch_name)
 
     def fetch_user_repositories(
         self, token: str, offset: int, limit: int
@@ -116,6 +242,51 @@ class GitLabRepoFetcher(IRepoFetcher):
 
         return user
 
+    def commit_files(
+            self,
+            token: str,
+            repository: str,
+            branch: str,
+            files: Dict[str, str],
+            commit_message: str,
+            author_name: Optional[str] = None,
+            author_email: Optional[str] = None
+    ) -> Dict[str, Any]:
+        authenticated_gitlab_manager = self.manager.authenticate(token)
+        return authenticated_gitlab_manager.commit_files(
+            project_or_id=repository,
+            branch=branch,
+            files=files,
+            commit_message=commit_message,
+            author_name=author_name,
+            author_email=author_email
+        )
+
+    def push_single_file(
+            self,
+            token: str,
+            repository: str,
+            file_path: str,
+            content: str,
+            commit_message: str,
+            branch: str,
+            update: bool = False,
+            author_name: Optional[str] = None,
+            author_email: Optional[str] = None
+    ) -> Dict[str, Any]:
+        authenticated_gitlab_manager = self.manager.authenticate(token)
+        return authenticated_gitlab_manager.push_single_file(
+            project_or_id=repository,
+            file_path=file_path,
+            content=content,
+            commit_message=commit_message,
+            branch=branch,
+            update=update,
+            author_name=author_name,
+            author_email=author_email
+        )
+
+
 
 class RepoFetcher:
 
@@ -128,9 +299,9 @@ class RepoFetcher:
     ):
         """bool represents whether it has a data transformer which can aid"""
         provider_value = provider.value if isinstance(provider, GitHosting) else provider
-        if provider_value == GitHosting.GITHUB:
+        if provider_value == GitHosting.GITHUB.value or provider == GitHosting.GITHUB:
             return GitHubRepoFetcher(), GitHubRepoResponseTransformer()
-        elif provider_value == GitHosting.GITLAB:
+        elif provider_value == GitHosting.GITLAB.value or provider == GitHosting.GITLAB:
             return GitLabRepoFetcher(), GitLabRepoResponseTransformer()
 
         return None, None

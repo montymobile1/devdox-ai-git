@@ -1,9 +1,10 @@
 from abc import abstractmethod
-from typing import Protocol
+from typing import Protocol, Optional, Dict, Any
+import base64
 
 import gitlab
 import requests
-from github import Github, GithubException
+from github import Github, GithubException, InputGitTreeElement, InputGitAuthor
 from github.AuthenticatedUser import AuthenticatedUser
 from github.Repository import Repository
 from gitlab import Gitlab, GitlabError
@@ -180,6 +181,370 @@ class AuthenticatedGitHubManager(IAuthenticatedGitHubManager):
                 }
             ) from e
 
+    def create_repository(
+            self,
+            name: str,
+            description: Optional[str] = None,
+            visibility: str = "private",
+            auto_init: bool = True,
+
+    ) :
+        """
+        Create a new repository for the authenticated user.
+
+        Args:
+            name: Repository name (required)
+            description: Repository description
+            visibility: Whether the repository is private or public
+            auto_init: Whether to initialize with a README
+        Returns:
+            Repository: The created repository object
+
+        Raises:
+            DevDoxGitException: If repository creation fails
+        """
+        try:
+            user = self._git_client.get_user()
+            if visibility == "private":
+                private = True
+            else:
+                private = False
+            repo = user.create_repo(
+                name=name,
+                description=description or "",
+                private=private,
+                auto_init=auto_init
+            )
+
+            return repo
+
+        except GithubException as e:
+            raise DevDoxGitException(
+                user_message=f"Failed to create repository: {str(e)}",
+                log_message=f"Repository creation failed for '{name}'",
+                internal_context={
+                    "provider": GITHUB_REPOSITORY_NAME,
+                    "manager": self.__class__.__name__,
+                    "repository_name": name,
+                },
+            ) from e
+
+    def delete_repository(
+            self,
+            repository: str | Repository,
+    ) -> Dict[str, Any]:
+        """
+        Delete a repository. This action is irreversible.
+
+        Args:
+            repository: Repository full name (e.g., 'owner/repo') or Repository object
+
+        Returns:
+            Dict containing deletion confirmation
+
+        Raises:
+            DevDoxGitException: If repository deletion fails
+        """
+        try:
+            # Get repository object if string provided
+            if isinstance(repository, str):
+                repo = self._git_client.get_repo(repository)
+                repo_name = repository
+            else:
+                repo = repository
+                repo_name = repo.full_name
+
+            # Delete the repository
+            repo.delete()
+
+            return {
+                "repository_name": repo_name,
+                "deleted": True,
+                "message": f"Repository '{repo_name}' deleted successfully"
+            }
+
+        except GithubException as e:
+            raise DevDoxGitException(
+                user_message=f"Failed to delete repository: {str(e)}",
+                log_message=f"Repository deletion failed for '{repository if isinstance(repository, str) else repository.full_name}'",
+                internal_context={
+                    "provider": GITHUB_REPOSITORY_NAME,
+                    "manager": self.__class__.__name__,
+                    "repository": repository if isinstance(repository, str) else repository.full_name,
+                },
+            ) from e
+
+    def create_branch(
+            self,
+            repository: str | Repository,
+            branch_name: str,
+            source_branch: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Create a new branch in a repository.
+
+        Args:
+            repository: Repository full name (e.g., 'owner/repo') or Repository object
+            branch_name: Name for the new branch
+            source_branch: Source branch name (defaults to repository's default branch)
+
+        Returns:
+            Dict containing the created reference information
+
+        Raises:
+            DevDoxGitException: If branch creation fails
+        """
+        try:
+            # Get repository object if string provided
+            if isinstance(repository, str):
+                repo = self._git_client.get_repo(repository)
+            else:
+                repo = repository
+
+            # Get source branch (default to repo's default branch)
+            if source_branch is None:
+                source_branch = repo.default_branch
+
+            # Get the source branch to get its commit SHA
+            src_branch = repo.get_branch(source_branch)
+
+            # Create new branch reference
+            ref = repo.create_git_ref(
+                ref=f"refs/heads/{branch_name}",
+                sha=src_branch.commit.sha
+            )
+
+            return {
+                "ref": ref.ref,
+                "sha": ref.object.sha,
+                "url": ref.url,
+            }
+
+        except GithubException as e:
+            raise DevDoxGitException(
+                user_message=f"Failed to create branch: {str(e)}",
+                log_message=f"Branch creation failed for '{branch_name}'",
+                internal_context={
+                    "provider": GITHUB_REPOSITORY_NAME,
+                    "manager": self.__class__.__name__,
+                    "branch_name": branch_name,
+                    "source_branch": source_branch,
+                },
+            ) from e
+
+    def delete_branch(
+            self,
+            repository: str | Repository,
+            branch_name: str,
+    ) -> Dict[str, Any]:
+        """
+        Delete a branch from a repository.
+
+        Args:
+            repository: Repository full name (e.g., 'owner/repo') or Repository object
+            branch_name: Name of the branch to delete
+
+        Returns:
+            Dict containing deletion confirmation
+
+        Raises:
+            DevDoxGitException: If branch deletion fails
+        """
+        try:
+            # Get repository object if string provided
+            if isinstance(repository, str):
+                repo = self._git_client.get_repo(repository)
+            else:
+                repo = repository
+
+            # Get the branch reference
+            branch_ref = repo.get_git_ref(f"heads/{branch_name}")
+
+            # Delete the branch reference
+            branch_ref.delete()
+
+            return {
+                "branch_name": branch_name,
+                "repository": repo.full_name,
+                "deleted": True,
+                "message": f"Branch '{branch_name}' deleted successfully"
+            }
+
+        except GithubException as e:
+            raise DevDoxGitException(
+                user_message=f"Failed to delete branch: {str(e)}",
+                log_message=f"Branch deletion failed for '{branch_name}'",
+                internal_context={
+                    "provider": GITHUB_REPOSITORY_NAME,
+                    "manager": self.__class__.__name__,
+                    "branch_name": branch_name,
+                },
+            ) from e
+
+    def commit_files(
+            self,
+            repository: str | Repository,
+            branch: str,
+            files: Dict[str, str],
+            commit_message: str,
+            author_name: Optional[str] = None,
+            author_email: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Commit multiple files to a repository in a single commit.
+
+        Args:
+            repository: Repository full name or Repository object
+            branch: Branch name to commit to
+            files: Dictionary mapping file paths to their content
+            commit_message: Commit message
+            author_name: Author name (optional, uses authenticated user if not provided)
+            author_email: Author email (optional, uses authenticated user if not provided)
+
+        Returns:
+            Dict containing commit information
+
+        Raises:
+            DevDoxGitException: If commit fails
+        """
+        try:
+            # Get repository object if string provided
+            if isinstance(repository, str):
+                repo = self._git_client.get_repo(repository)
+            else:
+                repo = repository
+
+            # Get the branch reference
+            branch_ref = repo.get_git_ref(f"heads/{branch}")
+            branch_sha = branch_ref.object.sha
+
+            # Get the base tree
+            base_tree = repo.get_git_tree(sha=branch_sha)
+
+            # Create blobs for each file
+            tree_elements = []
+            for file_path, content in files.items():
+                blob = repo.create_git_blob(content=content, encoding="utf-8")
+                tree_elements.append(
+                    InputGitTreeElement(
+                        path=file_path,
+                        mode="100644",  # Regular file
+                        type="blob",
+                        sha=blob.sha,
+                    )
+                )
+
+            # Create tree with the new blobs
+            tree = repo.create_git_tree(tree=tree_elements, base_tree=base_tree)
+
+            # Create author object if name and email provided
+            author = None
+            if author_name and author_email:
+                author = InputGitAuthor(name=author_name, email=author_email)
+
+            # Create commit
+            commit = repo.create_git_commit(
+                message=commit_message,
+                tree=tree,
+                parents=[repo.get_git_commit(branch_sha)],
+                author=author,
+            )
+
+            # Update branch reference to point to new commit
+            branch_ref.edit(sha=commit.sha)
+
+            return {
+                "commit_sha": commit.sha,
+                "commit_url": commit.html_url,
+                "message": commit_message,
+                "files_count": len(files),
+            }
+
+        except GithubException as e:
+            raise DevDoxGitException(
+                user_message=f"Failed to commit files: {str(e)}",
+                log_message=f"Commit failed on branch '{branch}'",
+                internal_context={
+                    "provider": GITHUB_REPOSITORY_NAME,
+                    "manager": self.__class__.__name__,
+                    "branch": branch,
+                    "files_count": len(files),
+                },
+            ) from e
+
+    def push_single_file(
+            self,
+            repository: str | Repository,
+            file_path: str,
+            content: str,
+            commit_message: str,
+            branch: str,
+            update: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Push a single file to a repository (create or update).
+
+        Args:
+            repository: Repository full name or Repository object
+            file_path: Path where the file should be created/updated
+            content: File content
+            commit_message: Commit message
+            branch: Branch name
+            update: Whether this is an update (requires file to exist)
+
+        Returns:
+            Dict containing commit information
+
+        Raises:
+            DevDoxGitException: If push fails
+        """
+        try:
+            # Get repository object if string provided
+            if isinstance(repository, str):
+                repo = self._git_client.get_repo(repository)
+            else:
+                repo = repository
+
+            if update:
+                # Get existing file to get its SHA
+                existing_file = repo.get_contents(file_path, ref=branch)
+                result = repo.update_file(
+                    path=file_path,
+                    message=commit_message,
+                    content=content,
+                    sha=existing_file.sha,
+                    branch=branch,
+                )
+            else:
+                # Create new file
+                result = repo.create_file(
+                    path=file_path,
+                    message=commit_message,
+                    content=content,
+                    branch=branch,
+                )
+
+            return {
+                "commit_sha": result["commit"].sha,
+                "commit_url": result["commit"].html_url,
+                "content_sha": result["content"].sha,
+                "file_path": file_path,
+            }
+
+        except GithubException as e:
+            raise DevDoxGitException(
+                user_message=f"Failed to push file: {str(e)}",
+                log_message=f"File push failed for '{file_path}' on branch '{branch}'",
+                internal_context={
+                    "provider": GITHUB_REPOSITORY_NAME,
+                    "manager": self.__class__.__name__,
+                    "file_path": file_path,
+                    "branch": branch,
+                    "update": update,
+                },
+            ) from e
+
+
     def _is_supported_file(self, filename: str) -> bool:
         """Check if file type is supported"""
         return any(filename.endswith(ext) for ext in SUPPORTED_EXTENSIONS)
@@ -291,6 +656,7 @@ class IAuthenticatedGitLabManager(Protocol):
     def get_project_languages(
             self, project_or_id: int | Project, timeout: int
     ): ...
+class AuthenticatedGitLabManager:
 
     @abstractmethod
     def get_user(self, timeout: int): ...
@@ -304,6 +670,9 @@ class IAuthenticatedGitLabManager(Protocol):
 class AuthenticatedGitLabManager(IAuthenticatedGitLabManager):
 
     DEFAULT_TIMEOUT = IAuthenticatedGitLabManager.get_default_timeout()
+    DEFAULT_TIMEOUT = 50
+    FILE_UPLOAD_TIMEOUT = 120
+    COMMIT_TIMEOUT = 60
 
     def __init__(
         self,
@@ -369,7 +738,7 @@ class AuthenticatedGitLabManager(IAuthenticatedGitLabManager):
             ) from e
 
     def get_user_repositories(
-        self, timeout: int = DEFAULT_TIMEOUT, page=1, per_page=20
+        self, page=1, per_page=20, timeout: int = DEFAULT_TIMEOUT
     ):
         try:
             per_page = max(1, min(per_page, 100))
@@ -400,6 +769,397 @@ class AuthenticatedGitLabManager(IAuthenticatedGitLabManager):
                     "provider": GITLAB_REPOSITORY_NAME,
                     "manager": self.__class__.__name__,
                 }
+            ) from e
+
+    def create_repository(
+            self,
+            name: str,
+            description: Optional[str] = None,
+            visibility: str = "private",
+            auto_init: bool = True,
+            timeout: int = DEFAULT_TIMEOUT,
+    ) :
+        """
+        Create a new repository/project for the authenticated user.
+
+        Args:
+            name: Repository/project name (required)
+            description: Repository description
+            visibility: Repository visibility ('private', 'internal', or 'public')
+            auto_init: Whether to initialize with a README
+            timeout: Request timeout in seconds
+
+        Returns:
+            Project: The created project object
+
+        Raises:
+            DevDoxGitException: If repository creation fails
+        """
+        try:
+
+            project_data = {
+                "name": name,
+                "visibility": visibility,
+            }
+
+            if description:
+                project_data["description"] = description
+
+            if auto_init:
+                project_data["initialize_with_readme"] = True
+
+            project = self._git_client.projects.create(project_data, timeout=timeout)
+
+            return project
+
+        except GitlabError as e:
+            raise DevDoxGitException(
+                user_message=f"Failed to create repository: {str(e)}",
+                log_message=f"Repository creation failed for '{name}'",
+                internal_context={
+                    "provider": GITLAB_REPOSITORY_NAME,
+                    "manager": self.__class__.__name__,
+                    "repository_name": name,
+                },
+            ) from e
+
+    def delete_repository(
+            self,
+            project_or_id: str | Project,
+            timeout: int = DEFAULT_TIMEOUT,
+    ) -> Dict[str, Any]:
+        """
+        Delete a repository/project. This action is irreversible.
+
+        Args:
+            project_or_id: Project ID or Project object
+            timeout: Request timeout in seconds
+
+        Returns:
+            Dict containing deletion confirmation
+
+        Raises:
+            DevDoxGitException: If repository deletion fails
+        """
+        try:
+            # Get project object if ID provided
+            if isinstance(project_or_id, int):
+                project = self._git_client.projects.get(project_or_id, timeout=timeout)
+            else:
+                project = project_or_id
+
+            project_id = project.id
+            project_full_name = getattr(project, 'path_with_namespace', project.name)
+
+            # Delete the project
+            project.delete()
+
+            return {
+                "project_id": project_id,
+                "project_name": project_full_name,
+                "deleted": True,
+                "message": f"Repository '{project_full_name}' deleted successfully"
+            }
+
+        except GitlabError as e:
+            raise DevDoxGitException(
+                user_message=f"Failed to delete repository: {str(e)}",
+                log_message=f"Repository deletion failed for '{project_or_id}'",
+                internal_context={
+                    "provider": GITLAB_REPOSITORY_NAME,
+                    "manager": self.__class__.__name__,
+                    "project": project_or_id,
+                },
+            ) from e
+
+
+    def create_branch(
+            self,
+            project_or_id: str | Project,
+            branch_name: str,
+            source_branch: Optional[str] = None,
+            timeout: int = DEFAULT_TIMEOUT,
+    ) -> Dict[str, Any]:
+        """
+        Create a new branch in a repository.
+
+        Args:
+            project_or_id: Project ID or Project object
+            branch_name: Name for the new branch
+            source_branch: Source branch name (defaults to project's default branch)
+            timeout: Request timeout in seconds
+
+        Returns:
+            Dict containing the created branch information
+
+        Raises:
+            DevDoxGitException: If branch creation fails
+        """
+        try:
+            # Get project object if ID provided
+            if isinstance(project_or_id, int):
+                project = self._git_client.projects.get(project_or_id, timeout=timeout)
+            else:
+                project = project_or_id
+
+            # Get source branch (default to project's default branch)
+            if source_branch is None:
+                source_branch = project.default_branch
+
+            # Create new branch
+            branch = project.branches.create(
+                {
+                    "branch": branch_name,
+                    "ref": source_branch
+                },
+                timeout=timeout
+            )
+
+            return {
+                "name": branch.name,
+                "commit": {
+                    "id": branch.commit["id"],
+                    "message": branch.commit.get("message", ""),
+                },
+                "protected": branch.protected,
+                "web_url": branch.web_url if hasattr(branch, "web_url") else None,
+            }
+
+        except GitlabError as e:
+            raise DevDoxGitException(
+                user_message=f"Failed to create branch: {str(e)}",
+                log_message=f"Branch creation failed for '{branch_name}'",
+                internal_context={
+                    "provider": GITLAB_REPOSITORY_NAME,
+                    "manager": self.__class__.__name__,
+                    "branch_name": branch_name,
+                    "source_branch": source_branch,
+                },
+            ) from e
+
+    def delete_branch(
+            self,
+            project_or_id: str | Project,
+            branch_name: str,
+            timeout: int = DEFAULT_TIMEOUT,
+    ) -> Dict[str, Any]:
+        """
+        Delete a branch from a repository.
+
+        Args:
+            project_or_id: Project ID or Project object
+            branch_name: Name of the branch to delete
+            timeout: Request timeout in seconds
+
+        Returns:
+            Dict containing deletion confirmation
+
+        Raises:
+            DevDoxGitException: If branch deletion fails
+        """
+        try:
+            # Get project object if ID provided
+            if isinstance(project_or_id, int):
+                project = self._git_client.projects.get(project_or_id, timeout=timeout)
+            else:
+                project = project_or_id
+
+            # Get the branch and delete it
+            branch = project.branches.get(branch_name, timeout=timeout)
+            branch.delete()
+
+            return {
+                "branch_name": branch_name,
+                "project_id": project.id,
+                "project_name": project.name,
+                "deleted": True,
+                "message": f"Branch '{branch_name}' deleted successfully"
+            }
+
+        except GitlabError as e:
+            raise DevDoxGitException(
+                user_message=f"Failed to delete branch: {str(e)}",
+                log_message=f"Branch deletion failed for '{branch_name}'",
+                internal_context={
+                    "provider": GITLAB_REPOSITORY_NAME,
+                    "manager": self.__class__.__name__,
+                    "branch_name": branch_name,
+                },
+            ) from e
+
+
+
+    def commit_files(
+            self,
+            project_or_id: int | Project,
+            branch: str,
+            files: Dict[str, str],
+            commit_message: str,
+            author_name: Optional[str] = None,
+            author_email: Optional[str] = None,
+            timeout: int = DEFAULT_TIMEOUT,
+    ) -> Dict[str, Any]:
+        """
+        Commit multiple files to a repository in a single commit.
+
+        Args:
+            project_or_id: Project ID or Project object
+            branch: Branch name to commit to
+            files: Dictionary mapping file paths to their content
+            commit_message: Commit message
+            author_name: Author name (optional)
+            author_email: Author email (optional)
+            timeout: Request timeout in seconds
+
+        Returns:
+            Dict containing commit information
+
+        Raises:
+            DevDoxGitException: If commit fails
+        """
+        try:
+            # Get project object if ID provided
+            if isinstance(project_or_id, int):
+                project = self._git_client.projects.get(project_or_id, timeout=timeout)
+            else:
+                project = project_or_id
+
+            # Build actions list for all files
+            actions = []
+            for file_path, content in files.items():
+                actions.append({
+                    "action": "create",
+                    "file_path": file_path,
+                    "content": content,
+                })
+
+            # Build commit data
+            commit_data = {
+                "branch": branch,
+                "commit_message": commit_message,
+                "actions": actions,
+            }
+
+            # Add author info if provided
+            if author_name:
+                commit_data["author_name"] = author_name
+            if author_email:
+                commit_data["author_email"] = author_email
+
+            # Create commit
+            commit = project.commits.create(commit_data, timeout=timeout)
+
+            return {
+                "commit_id": commit.id,
+                "commit_short_id": commit.short_id,
+                "message": commit.message,
+                "author_name": commit.author_name,
+                "author_email": commit.author_email,
+                "created_at": commit.created_at,
+                "web_url": commit.web_url if hasattr(commit, "web_url") else None,
+                "files_count": len(files),
+            }
+
+        except GitlabError as e:
+            raise DevDoxGitException(
+                user_message=f"Failed to commit files: {str(e)}",
+                log_message=f"Commit failed on branch '{branch}'",
+                internal_context={
+                    "provider": GITLAB_REPOSITORY_NAME,
+                    "manager": self.__class__.__name__,
+                    "branch": branch,
+                    "files_count": len(files),
+                },
+            ) from e
+
+    def push_single_file(
+            self,
+            project_or_id: int | Project,
+            file_path: str,
+            content: str,
+            commit_message: str,
+            branch: str,
+            update: bool = False,
+            author_name: Optional[str] = None,
+            author_email: Optional[str] = None,
+            timeout: int = DEFAULT_TIMEOUT,
+    ) -> Dict[str, Any]:
+        """
+        Push a single file to a repository (create or update).
+
+        Args:
+            project_or_id: Project ID or Project object
+            file_path: Path where the file should be created/updated
+            content: File content
+            commit_message: Commit message
+            branch: Branch name
+            update: Whether this is an update (requires file to exist)
+            author_name: Author name (optional)
+            author_email: Author email (optional)
+            timeout: Request timeout in seconds
+
+        Returns:
+            Dict containing commit information
+
+        Raises:
+            DevDoxGitException: If push fails
+        """
+        try:
+            # Get project object if ID provided
+            if isinstance(project_or_id, int):
+                project = self._git_client.projects.get(project_or_id, timeout=timeout)
+            else:
+                project = project_or_id
+
+            file_data = {
+                "file_path": file_path,
+                "branch": branch,
+                "content": content,
+                "commit_message": commit_message,
+            }
+
+            # Add author info if provided
+            if author_name:
+                file_data["author_name"] = author_name
+            if author_email:
+                file_data["author_email"] = author_email
+
+            if update:
+                # Get existing file and update it
+                existing_file = project.files.get(file_path=file_path, ref=branch)
+                existing_file.content = content
+                _ = existing_file.save(
+                    branch=branch,
+                    commit_message=commit_message,
+                    **({k: v for k, v in [("author_name", author_name), ("author_email", author_email)] if v})
+                )
+
+                return {
+                    "file_path": file_path,
+                    "branch": branch,
+                    "updated": True,
+                }
+            else:
+                # Create new file
+                new_file = project.files.create(file_data, timeout=timeout)
+
+                return {
+                    "file_path": new_file.file_path,
+                    "branch": new_file.branch if hasattr(new_file, "branch") else branch,
+                    "created": True,
+                }
+
+        except GitlabError as e:
+            raise DevDoxGitException(
+                user_message=f"Failed to push file: {str(e)}",
+                log_message=f"File push failed for '{file_path}' on branch '{branch}'",
+                internal_context={
+                    "provider": GITLAB_REPOSITORY_NAME,
+                    "manager": self.__class__.__name__,
+                    "file_path": file_path,
+                    "branch": branch,
+                    "update": update,
+                },
             ) from e
 
     def _is_supported_file(self, filename: str) -> bool:
