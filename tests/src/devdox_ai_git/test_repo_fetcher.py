@@ -1,7 +1,7 @@
 import types
 
 import pytest
-
+from enum import Enum
 # System under test
 import devdox_ai_git.repo_fetcher as rf
 
@@ -237,7 +237,7 @@ def test_gitlab_fetch_repo_user_returns_none_when_missing(
 # --------------------------
 def test_repo_fetcher_get_components_with_enum(monkeypatch):
     # Patch the module-level GitHosting enum with a lightweight stand-in
-    class _FakeGitHosting:
+    class _FakeGitHosting(str, Enum):
         GITHUB = "github"
         GITLAB = "gitlab"
 
@@ -259,7 +259,7 @@ def test_repo_fetcher_get_components_with_enum(monkeypatch):
 
 
 def test_repo_fetcher_get_components_unknown_returns_none_pair(monkeypatch):
-    class _FakeGitHosting:
+    class _FakeGitHosting(str, Enum):
         GITHUB = "github"
         GITLAB = "gitlab"
 
