@@ -1,3 +1,4 @@
+import copy
 from abc import abstractmethod
 from typing import Any, Dict, Optional, Protocol
 
@@ -147,7 +148,11 @@ class AuthenticatedGitHubManager(IAuthenticatedGitHubManager):
             per_page = GitHubManager.validate_per_page(per_page)
             page = GitHubManager.validate_page(page)
 
-            user = self._git_client.get_user()
+            # Deepcopy is used to prevent object mutability and leaking of configurations
+            temporary_git_client = copy.deepcopy(self._git_client)
+            temporary_git_client.per_page = per_page
+
+            user = temporary_git_client.get_user()
 
             repos_paginated = user.get_repos(
                 visibility=visibility,
@@ -155,7 +160,6 @@ class AuthenticatedGitHubManager(IAuthenticatedGitHubManager):
                 sort=sort,
                 direction=direction,
             )
-            repos_paginated.per_page = per_page
 
             repos_page = repos_paginated.get_page(page - 1)
 
