@@ -8,6 +8,7 @@ from github.Repository import Repository
 from gitlab.v4.objects import Project
 from pydantic import BaseModel, Field
 
+
 class GitHosting(str, Enum):
     GITLAB = "gitlab"
     GITHUB = "github"
@@ -26,8 +27,8 @@ class NormalizedGitRepo(BaseModel):
     default_branch: str = Field(..., description="Default branch name")
     forks_count: int = Field(..., description="Number of forks")
     stargazers_count: int = Field(..., description="Number of stars")
-    size: int | None = Field(None, description="Repository size in KB")  # noqa: UP045
-    repo_created_at: datetime | None = Field(  # noqa: UP045
+    size: int | None = Field(None, description="Repository size in Bytes")
+    repo_created_at: datetime | None = Field(
         None, description="Repository creation date from provider"
     )
 
@@ -35,13 +36,13 @@ class NormalizedGitRepo(BaseModel):
     private: bool | None = Field(None, description="Private flag (GitHub)")
     visibility: str | None = Field(
         None, description="Visibility setting (GitLab)"
-    )  # noqa: UP045
+    )
 
 
 class GitUserResponse(BaseModel):
     username: str | None = Field(None, description="Git Username")
     id: int | None = Field(None, description="Git user Id")
-    name: str | None = Field(None, description="Git user display name")  # noqa: UP045
+    name: str | None = Field(None, description="Git user display name")
     email: str | None = Field(None, description="Git user email")
     avatar_url: str | None = Field(None, description="Git user avatar url")
     html_url: str | None = Field(None, description="Git user html url")
