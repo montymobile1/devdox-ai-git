@@ -735,7 +735,7 @@ class AuthenticatedGitLabManager(IAuthenticatedGitLabManager):
             ) from e
 
     def get_user_repositories(
-        self, page=1, per_page=20, timeout: int = DEFAULT_TIMEOUT
+        self, timeout: int = DEFAULT_TIMEOUT, page=1, per_page=20
     ):
         try:
             per_page = max(1, min(per_page, 100))
