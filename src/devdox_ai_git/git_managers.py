@@ -1,10 +1,9 @@
 from abc import abstractmethod
-from typing import Protocol, Optional, Dict, Any
-import base64
+from typing import Any, Dict, Optional, Protocol
 
 import gitlab
 import requests
-from github import Github, GithubException, InputGitTreeElement, InputGitAuthor
+from github import Github, GithubException, InputGitAuthor, InputGitTreeElement
 from github.AuthenticatedUser import AuthenticatedUser
 from github.Repository import Repository
 from gitlab import Gitlab, GitlabError
@@ -656,7 +655,6 @@ class IAuthenticatedGitLabManager(Protocol):
     def get_project_languages(
             self, project_or_id: int | Project, timeout: int
     ): ...
-class AuthenticatedGitLabManager:
 
     @abstractmethod
     def get_user(self, timeout: int): ...
@@ -670,7 +668,6 @@ class AuthenticatedGitLabManager:
 class AuthenticatedGitLabManager(IAuthenticatedGitLabManager):
 
     DEFAULT_TIMEOUT = IAuthenticatedGitLabManager.get_default_timeout()
-    DEFAULT_TIMEOUT = 50
     FILE_UPLOAD_TIMEOUT = 120
     COMMIT_TIMEOUT = 60
 
