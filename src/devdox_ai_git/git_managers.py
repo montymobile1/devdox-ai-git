@@ -566,6 +566,10 @@ class GitHubManager(IManager):
                     base_url=self.base_url, login_or_token=access_token
                 )
 
+            # Used to validate whether the passed access_token is valid or not
+            # if it is not valid it throw a BadCredentialsException
+            _ = github_client.get_user().login
+
             return AuthenticatedGitHubManager(
                 base_url=self.base_url, git_client=github_client
             )
