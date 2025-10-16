@@ -80,9 +80,10 @@ class IAuthenticatedGitHubManager(Protocol):
 
 
 class AuthenticatedGitHubManager(IAuthenticatedGitHubManager):
-    def __init__(self, base_url, git_client):
+    def __init__(self, base_url, git_client, pagination_git_client):
         self.base_url = base_url
         self._git_client: Github = git_client
+        self._git_client_pagination: Github = pagination_git_client
 
     def get_project(self, full_name_or_id: str | int):
         try:
@@ -149,10 +150,9 @@ class AuthenticatedGitHubManager(IAuthenticatedGitHubManager):
             page = GitHubManager.validate_page(page)
 
             # Deepcopy is used to prevent object mutability and leaking of configurations
-            temporary_git_client = copy.deepcopy(self._git_client)
-            temporary_git_client.per_page = per_page
+            self._git_client_pagination.per_page = per_page
 
-            user = temporary_git_client.get_user()
+            user = self._git_client_pagination.get_user()
 
             repos_paginated = user.get_repos(
                 visibility=visibility,
@@ -547,14 +547,12 @@ class AuthenticatedGitHubManager(IAuthenticatedGitHubManager):
                 },
             ) from e
 
-
     def _is_supported_file(self, filename: str) -> bool:
         """Check if file type is supported"""
         return any(filename.endswith(ext) for ext in SUPPORTED_EXTENSIONS)
 
 
 class GitHubManager(IManager):
-
     default_base_url = "https://api.github.com"
 
     def __init__(self, base_url=default_base_url):
@@ -565,17 +563,20 @@ class GitHubManager(IManager):
         try:
             if self.base_url == self.default_base_url:
                 github_client = Github(access_token)
+                pagination_git_client = Github(access_token)
             else:
                 github_client = Github(
                     base_url=self.base_url, login_or_token=access_token
                 )
+
+                pagination_git_client = Github(base_url=self.base_url, login_or_token=access_token)
 
             # Used to validate whether the passed access_token is valid or not
             # if it is not valid it throw a BadCredentialsException
             _ = github_client.get_user().login
 
             return AuthenticatedGitHubManager(
-                base_url=self.base_url, git_client=github_client
+                base_url=self.base_url, git_client=github_client, pagination_git_client=pagination_git_client
             )
 
         except GithubException as e:
