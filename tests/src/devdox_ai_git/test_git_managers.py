@@ -1,3 +1,5 @@
+import math
+
 import pytest
 import requests
 from github import GithubException
@@ -140,7 +142,7 @@ class TestGitHubManager:
             def get_user(self):
                 return FailingUser()
 
-        manager = AuthenticatedGitHubManager("https://api.github.com", Client())
+        manager = AuthenticatedGitHubManager("https://api.github.com", Client(), Client())
 
         with pytest.raises(DevDoxGitException) as exc_info:
             manager.get_user_repositories()
@@ -150,7 +152,7 @@ class TestGitHubManager:
 class TestAuthenticatedGitHubManager:
     def test_github_manager_authenticate_default(self, monkeypatch):
         dummy_auth = AuthenticatedGitHubManager(
-            "https://api.github.com", "dummy_client"
+            "https://api.github.com", "dummy_client", "dummy_pagination_client"
         )
 
         class DummyGitHub:
@@ -159,6 +161,11 @@ class TestAuthenticatedGitHubManager:
 
             def authenticate(self, token):
                 return dummy_auth
+
+            def get_user(self):
+                class _U:
+                    login = "dummy-user"
+                return _U()
 
         monkeypatch.setattr(f"{real_module_path}.Github", DummyGitHub)
 
@@ -170,7 +177,8 @@ class TestAuthenticatedGitHubManager:
         dummy_user = DummyGitHubUser()
 
         dummy_client = type("Client", (), {"get_user": lambda self: dummy_user})()
-        manager = AuthenticatedGitHubManager("https://api.github.com", dummy_client)
+        dummy_paginated_client = type("Client", (), {"get_user": lambda self: dummy_user})()
+        manager = AuthenticatedGitHubManager("https://api.github.com", dummy_client, dummy_paginated_client)
 
         user_info = manager.get_user()
         assert user_info.login == "dev"
@@ -180,19 +188,29 @@ class TestAuthenticatedGitHubManager:
         dummy_client = type(
             "Client", (), {"get_user": lambda self: DummyGitHubUser()}
         )()
-        manager = AuthenticatedGitHubManager("https://api.github.com", dummy_client)
+
+        dummy_paginated_client = type(
+            "Client", (), {"get_user": lambda self: DummyGitHubUser()}
+        )()
+
+        manager = AuthenticatedGitHubManager("https://api.github.com", dummy_client, dummy_paginated_client)
 
         result = manager.get_user_repositories(page=2, per_page=5)
         assert result["pagination_info"]["current_page"] == 2
         assert isinstance(result["repositories"], list)
 
     def test_authenticate_custom_url(self, monkeypatch):
-        dummy_auth = AuthenticatedGitHubManager("https://custom.api", "client")
+        dummy_auth = AuthenticatedGitHubManager("https://custom.api", "client", "pagination_client")
 
         class DummyGitHub:
             def __init__(self, base_url, login_or_token):
                 assert base_url == "https://custom.api"
                 assert login_or_token == "valid"
+
+            def get_user(self):
+                class _U:
+                    login = "dummy-user"
+                return _U()
 
         monkeypatch.setattr(f"{real_module_path}.Github", DummyGitHub)
 
@@ -206,7 +224,7 @@ class TestAuthenticatedGitHubManager:
             def get_repo(self, full_name):
                 return dummy_repo
 
-        manager = AuthenticatedGitHubManager("https://api.github.com", Client())
+        manager = AuthenticatedGitHubManager("https://api.github.com", Client(), Client())
         repo = manager.get_project("org/repo")
 
         assert repo.full_name == "org/repo"
@@ -219,7 +237,7 @@ class TestAuthenticatedGitHubManager:
             def get_repo(self, full_name):
                 raise GithubException(404, "Not Found", None)
 
-        manager = AuthenticatedGitHubManager("https://api.github.com", Client())
+        manager = AuthenticatedGitHubManager("https://api.github.com", Client(), Client())
 
         with pytest.raises(DevDoxGitException) as exc_info:
             manager.get_project("org/nonexistent")
@@ -235,7 +253,7 @@ class TestAuthenticatedGitHubManager:
             def get_repo(self, full_name):
                 return dummy_repo
 
-        manager = AuthenticatedGitHubManager("https://api.github.com", Client())
+        manager = AuthenticatedGitHubManager("https://api.github.com", Client(), Client())
         languages = manager.get_project_languages("org/repo")
 
         assert languages == {"Python": 1500}
@@ -245,7 +263,7 @@ class TestAuthenticatedGitHubManager:
             def get_repo(self, full_name):
                 raise GithubException(500, "Server Error", None)
 
-        manager = AuthenticatedGitHubManager("https://api.github.com", Client())
+        manager = AuthenticatedGitHubManager("https://api.github.com", Client(), Client())
 
         with pytest.raises(DevDoxGitException) as exc_info:
             manager.get_project_languages("org/repo")
@@ -256,7 +274,7 @@ class TestAuthenticatedGitHubManager:
             def get_user(self):
                 raise GithubException(401, "Unauthorized", None)
 
-        manager = AuthenticatedGitHubManager("https://api.github.com", Client())
+        manager = AuthenticatedGitHubManager("https://api.github.com", Client(), Client())
 
         with pytest.raises(DevDoxGitException) as exc_info:
             manager.get_user()
@@ -269,7 +287,7 @@ class TestAuthenticatedGitHubManager:
             def get_user(self):
                 return dummy_user
 
-        manager = AuthenticatedGitHubManager("https://api.github.com", Client())
+        manager = AuthenticatedGitHubManager("https://api.github.com", Client(), Client())
         repo = manager.create_repository(
             name="test-repo",
             description="Test description",
@@ -287,7 +305,7 @@ class TestAuthenticatedGitHubManager:
             def get_user(self):
                 return dummy_user
 
-        manager = AuthenticatedGitHubManager("https://api.github.com", Client())
+        manager = AuthenticatedGitHubManager("https://api.github.com", Client(), Client())
         repo = manager.create_repository(
             name="public-repo",
             description="Public repo",
@@ -306,7 +324,7 @@ class TestAuthenticatedGitHubManager:
             def get_user(self):
                 return FailingUser()
 
-        manager = AuthenticatedGitHubManager("https://api.github.com", Client())
+        manager = AuthenticatedGitHubManager("https://api.github.com", Client(), Client())
 
         with pytest.raises(DevDoxGitException) as exc_info:
             manager.create_repository(name="test-repo")
@@ -320,7 +338,7 @@ class TestAuthenticatedGitHubManager:
             def get_repo(self, full_name):
                 return dummy_repo
 
-        manager = AuthenticatedGitHubManager("https://api.github.com", Client())
+        manager = AuthenticatedGitHubManager("https://api.github.com", Client(), Client())
         result = manager.delete_repository("org/repo")
 
         assert result["deleted"] is True
@@ -333,7 +351,7 @@ class TestAuthenticatedGitHubManager:
         class Client:
             pass
 
-        manager = AuthenticatedGitHubManager("https://api.github.com", Client())
+        manager = AuthenticatedGitHubManager("https://api.github.com", Client(), Client())
         result = manager.delete_repository(dummy_repo)
 
         assert result["deleted"] is True
@@ -344,7 +362,7 @@ class TestAuthenticatedGitHubManager:
             def get_repo(self, full_name):
                 raise GithubException(403, "Forbidden", None)
 
-        manager = AuthenticatedGitHubManager("https://api.github.com", Client())
+        manager = AuthenticatedGitHubManager("https://api.github.com", Client(), Client())
 
         with pytest.raises(DevDoxGitException) as exc_info:
             manager.delete_repository("org/repo")
@@ -364,7 +382,7 @@ class TestAuthenticatedGitHubManager:
             def get_repo(self, full_name):
                 return dummy_repo
 
-        manager = AuthenticatedGitHubManager("https://api.github.com", Client())
+        manager = AuthenticatedGitHubManager("https://api.github.com", Client(), Client())
         result = manager.create_branch("org/repo", "feature", "main")
 
         assert "refs/heads/feature" in result["ref"]
@@ -383,7 +401,7 @@ class TestAuthenticatedGitHubManager:
             def get_repo(self, full_name):
                 return dummy_repo
 
-        manager = AuthenticatedGitHubManager("https://api.github.com", Client())
+        manager = AuthenticatedGitHubManager("https://api.github.com", Client(), Client())
         result = manager.create_branch("org/repo", "feature", None)
 
         assert result is not None
@@ -400,7 +418,7 @@ class TestAuthenticatedGitHubManager:
             def get_repo(self, full_name):
                 return FailingRepo()
 
-        manager = AuthenticatedGitHubManager("https://api.github.com", Client())
+        manager = AuthenticatedGitHubManager("https://api.github.com", Client(), Client())
 
         with pytest.raises(DevDoxGitException) as exc_info:
             manager.create_branch("org/repo", "feature", "nonexistent")
@@ -416,7 +434,7 @@ class TestAuthenticatedGitHubManager:
             def get_repo(self, full_name):
                 return dummy_repo
 
-        manager = AuthenticatedGitHubManager("https://api.github.com", Client())
+        manager = AuthenticatedGitHubManager("https://api.github.com", Client(), Client())
         result = manager.delete_branch("org/repo", "feature")
 
         assert result["deleted"] is True
@@ -434,7 +452,7 @@ class TestAuthenticatedGitHubManager:
             def get_repo(self, full_name):
                 return FailingRepo()
 
-        manager = AuthenticatedGitHubManager("https://api.github.com", Client())
+        manager = AuthenticatedGitHubManager("https://api.github.com", Client(), Client())
 
         with pytest.raises(DevDoxGitException) as exc_info:
             manager.delete_branch("org/repo", "feature")
@@ -458,7 +476,7 @@ class TestAuthenticatedGitHubManager:
             def get_repo(self, full_name):
                 return dummy_repo
 
-        manager = AuthenticatedGitHubManager("https://api.github.com", Client())
+        manager = AuthenticatedGitHubManager("https://api.github.com", Client(), Client())
         result = manager.commit_files(
             repository="org/repo",
             branch="main",
@@ -480,7 +498,7 @@ class TestAuthenticatedGitHubManager:
             def get_repo(self, full_name):
                 return FailingRepo()
 
-        manager = AuthenticatedGitHubManager("https://api.github.com", Client())
+        manager = AuthenticatedGitHubManager("https://api.github.com", Client(), Client())
 
         with pytest.raises(DevDoxGitException) as exc_info:
             manager.commit_files(
@@ -510,7 +528,7 @@ class TestAuthenticatedGitHubManager:
             def get_repo(self, full_name):
                 return dummy_repo
 
-        manager = AuthenticatedGitHubManager("https://api.github.com", Client())
+        manager = AuthenticatedGitHubManager("https://api.github.com", Client(), Client())
         result = manager.push_single_file(
             repository="org/repo",
             file_path="new_file.txt",
@@ -545,7 +563,7 @@ class TestAuthenticatedGitHubManager:
             def get_repo(self, full_name):
                 return dummy_repo
 
-        manager = AuthenticatedGitHubManager("https://api.github.com", Client())
+        manager = AuthenticatedGitHubManager("https://api.github.com", Client(), Client())
         result = manager.push_single_file(
             repository="org/repo",
             file_path="existing_file.txt",
@@ -566,7 +584,7 @@ class TestAuthenticatedGitHubManager:
             def get_repo(self, full_name):
                 return FailingRepo()
 
-        manager = AuthenticatedGitHubManager("https://api.github.com", Client())
+        manager = AuthenticatedGitHubManager("https://api.github.com", Client(), Client())
 
         with pytest.raises(DevDoxGitException) as exc_info:
             manager.push_single_file(
@@ -887,7 +905,7 @@ class TestAuthenticatedGitLabManager:
         languages = manager.get_project_languages(project)
 
         assert "Python" in languages
-        assert languages["Python"] == 80.0
+        assert math.isclose(languages["Python"], 80.0)
 
     def test_get_project_languages_with_id(self, monkeypatch):
         monkeypatch.setattr(f"{real_module_path}.gitlab.Gitlab", DummyGitLab)

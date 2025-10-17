@@ -1,10 +1,10 @@
+import copy
 from abc import abstractmethod
-from typing import Protocol, Optional, Dict, Any
-import base64
+from typing import Any, Dict, Optional, Protocol
 
 import gitlab
 import requests
-from github import Github, GithubException, InputGitTreeElement, InputGitAuthor
+from github import Github, GithubException, InputGitAuthor, InputGitTreeElement
 from github.AuthenticatedUser import AuthenticatedUser
 from github.Repository import Repository
 from gitlab import Gitlab, GitlabError
@@ -80,9 +80,10 @@ class IAuthenticatedGitHubManager(Protocol):
 
 
 class AuthenticatedGitHubManager(IAuthenticatedGitHubManager):
-    def __init__(self, base_url, git_client):
+    def __init__(self, base_url, git_client, pagination_git_client):
         self.base_url = base_url
         self._git_client: Github = git_client
+        self._git_client_pagination: Github = pagination_git_client
 
     def get_project(self, full_name_or_id: str | int):
         try:
@@ -148,7 +149,10 @@ class AuthenticatedGitHubManager(IAuthenticatedGitHubManager):
             per_page = GitHubManager.validate_per_page(per_page)
             page = GitHubManager.validate_page(page)
 
-            user = self._git_client.get_user()
+            # Deepcopy is used to prevent object mutability and leaking of configurations
+            self._git_client_pagination.per_page = per_page
+
+            user = self._git_client_pagination.get_user()
 
             repos_paginated = user.get_repos(
                 visibility=visibility,
@@ -156,7 +160,6 @@ class AuthenticatedGitHubManager(IAuthenticatedGitHubManager):
                 sort=sort,
                 direction=direction,
             )
-            repos_paginated.per_page = per_page
 
             repos_page = repos_paginated.get_page(page - 1)
 
@@ -544,14 +547,12 @@ class AuthenticatedGitHubManager(IAuthenticatedGitHubManager):
                 },
             ) from e
 
-
     def _is_supported_file(self, filename: str) -> bool:
         """Check if file type is supported"""
         return any(filename.endswith(ext) for ext in SUPPORTED_EXTENSIONS)
 
 
 class GitHubManager(IManager):
-
     default_base_url = "https://api.github.com"
 
     def __init__(self, base_url=default_base_url):
@@ -562,13 +563,20 @@ class GitHubManager(IManager):
         try:
             if self.base_url == self.default_base_url:
                 github_client = Github(access_token)
+                pagination_git_client = Github(access_token)
             else:
                 github_client = Github(
                     base_url=self.base_url, login_or_token=access_token
                 )
 
+                pagination_git_client = Github(base_url=self.base_url, login_or_token=access_token)
+
+            # Used to validate whether the passed access_token is valid or not
+            # if it is not valid it throw a BadCredentialsException
+            _ = github_client.get_user().login
+
             return AuthenticatedGitHubManager(
-                base_url=self.base_url, git_client=github_client
+                base_url=self.base_url, git_client=github_client, pagination_git_client=pagination_git_client
             )
 
         except GithubException as e:
@@ -656,7 +664,6 @@ class IAuthenticatedGitLabManager(Protocol):
     def get_project_languages(
             self, project_or_id: int | Project, timeout: int
     ): ...
-class AuthenticatedGitLabManager:
 
     @abstractmethod
     def get_user(self, timeout: int): ...
@@ -670,7 +677,6 @@ class AuthenticatedGitLabManager:
 class AuthenticatedGitLabManager(IAuthenticatedGitLabManager):
 
     DEFAULT_TIMEOUT = IAuthenticatedGitLabManager.get_default_timeout()
-    DEFAULT_TIMEOUT = 50
     FILE_UPLOAD_TIMEOUT = 120
     COMMIT_TIMEOUT = 60
 
@@ -738,7 +744,7 @@ class AuthenticatedGitLabManager(IAuthenticatedGitLabManager):
             ) from e
 
     def get_user_repositories(
-        self, page=1, per_page=20, timeout: int = DEFAULT_TIMEOUT
+        self, timeout: int = DEFAULT_TIMEOUT, page=1, per_page=20
     ):
         try:
             per_page = max(1, min(per_page, 100))
